@@ -88,11 +88,17 @@ EmuWindow_GLFW::EmuWindow_GLFW() {
         LOG_CRITICAL(Frontend, "Failed to initialize GLFW! Exiting...");
         exit(1);
     }
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    // GLFW on OSX requires these window hints to be set to create a 3.2+ GL context.
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, Settings::values.opengl_version_major);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, Settings::values.opengl_version_minor);
+
+    // Set hints for OpenGL core and GLES support.
+    if (Settings::values.opengl_flavor == "core") {
+        // GLFW on OSX requires these window hints to be set to create a 3.2+ GL context.
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    } else if (Settings::values.opengl_flavor == "gles") {
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+    } // compatibility is assumed otherwise, and doesn't require any hint.
 
     std::string window_title = Common::StringFromFormat("Citra | %s-%s", Common::g_scm_branch, Common::g_scm_desc);
     m_render_window = glfwCreateWindow(VideoCore::kScreenTopWidth,

@@ -48,6 +48,14 @@ bg_red =
 bg_blue =
 bg_green =
 
+[OpenGL]
+# Allowed values: 2.1 to 4.5 for compatibility, 3.1 to 4.5 for core and 2.0 to 3.1 for gles (subject to driver restrictions)
+version_major =
+version_minor =
+
+# compatibility, core (default), gles
+flavor =
+
 [Data Storage]
 # Whether to create a virtual SD card.
 # 1 (default): Yes, 0: No

@@ -37,6 +37,11 @@ struct Values {
     // Core
     int frame_skip;
 
+    // OpenGL
+    std::string opengl_flavor;
+    int opengl_version_major;
+    int opengl_version_minor;
+
     // Data Storage
     bool use_virtual_sd;
 

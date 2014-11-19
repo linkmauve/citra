@@ -76,6 +76,11 @@ void Config::ReadValues() {
     Settings::values.bg_green = (float)glfw_config->GetReal("Renderer", "bg_green", 1.0);
     Settings::values.bg_blue  = (float)glfw_config->GetReal("Renderer", "bg_blue",  1.0);
 
+    // OpenGL
+    Settings::values.opengl_version_major = glfw_config->GetReal("OpenGL", "version_major", 3);
+    Settings::values.opengl_version_minor = glfw_config->GetReal("OpenGL", "version_minor", 3);
+    Settings::values.opengl_flavor = glfw_config->Get("OpenGL", "flavor", "core");
+
     // Data Storage
     Settings::values.use_virtual_sd = glfw_config->GetBoolean("Data Storage", "use_virtual_sd", true);
 
