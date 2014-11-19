@@ -104,10 +104,20 @@ GRenderWindow::GRenderWindow(QWidget* parent, EmuThread* emu_thread) :
 
     // TODO: One of these flags might be interesting: WA_OpaquePaintEvent, WA_NoBackground, WA_DontShowOnScreen, WA_DeleteOnClose
     QGLFormat fmt;
-    fmt.setVersion(3,2);
-    fmt.setProfile(QGLFormat::CoreProfile);
-    // Requests a forward-compatible context, which is required to get a 3.2+ context on OS X
-    fmt.setOption(QGL::NoDeprecatedFunctions);
+    fmt.setVersion(Settings::values.opengl_version_major, Settings::values.opengl_version_minor);
+    if (Settings::values.opengl_flavor == "core") {
+        fmt.setProfile(QGLFormat::CoreProfile);
+        // Requests a forward-compatible context, which is required to get a 3.2+ context on OS X
+        fmt.setOption(QGL::NoDeprecatedFunctions);
+    } else if (Settings::values.opengl_flavor == "gles") {
+        // TODO(Link Mauve): We need a way to tell Qt to give us a GLES context.
+        // A possible solution given by Subv, but unimplementable until we ditch Qt4:
+        // You could use QSurfaceFormat with RenderableType::OpenGLES and then get the QGLFormat
+        // with QGLFormat::fromSurfaceFormat. I am not sure if this would work.  As a side note,
+        // all the QGL* (QGLFormat, QGLWidget, etc) classes have been deprecated as of Qt 5.4, so
+        // it might be worth it to check out the other alternatives
+        LOG_WARNING(Frontend, "GLES requested but ignored.");
+    }
 
     child = new GGLWidgetInternal(fmt, this);
     QBoxLayout* layout = new QHBoxLayout(this);

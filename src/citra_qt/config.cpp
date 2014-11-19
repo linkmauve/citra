@@ -60,6 +60,12 @@ void Config::ReadValues() {
     Settings::values.bg_blue  = qt_config->value("bg_blue",  1.0).toFloat();
     qt_config->endGroup();
 
+    qt_config->beginGroup("OpenGL");
+    Settings::values.opengl_version_major = qt_config->value("version_major", 3).toInt();
+    Settings::values.opengl_version_minor = qt_config->value("version_minor", 3).toInt();
+    Settings::values.opengl_flavor = qt_config->value("flavor", QString("core")).toString().toUtf8().constData();
+    qt_config->endGroup();
+
     qt_config->beginGroup("Data Storage");
     Settings::values.use_virtual_sd = qt_config->value("use_virtual_sd", true).toBool();
     qt_config->endGroup();
@@ -111,6 +117,12 @@ void Config::SaveValues() {
     qt_config->setValue("bg_red",   (double)Settings::values.bg_red);
     qt_config->setValue("bg_green", (double)Settings::values.bg_green);
     qt_config->setValue("bg_blue",  (double)Settings::values.bg_blue);
+    qt_config->endGroup();
+
+    qt_config->beginGroup("OpenGL");
+    qt_config->setValue("version_major", Settings::values.opengl_version_major);
+    qt_config->setValue("version_minor", Settings::values.opengl_version_minor);
+    qt_config->setValue("flavor", QString(Settings::values.opengl_flavor.c_str()));
     qt_config->endGroup();
 
     qt_config->beginGroup("Data Storage");
