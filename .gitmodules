@@ -7,3 +7,6 @@
 [submodule "nihstro"]
 	path = externals/nihstro
 	url = https://github.com/neobrain/nihstro.git
+[submodule "epoxy"]
+	path = externals/libepoxy/libepoxy
+	url = https://github.com/anholt/libepoxy.git

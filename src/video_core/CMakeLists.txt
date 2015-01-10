@@ -50,3 +50,7 @@ if (PNG_FOUND)
     include_directories(${PNG_INCLUDE_DIRS})
     add_definitions(${PNG_DEFINITIONS})
 endif()
+
+target_link_libraries(video_core ${LIBEPOXY_LIBRARIES})
+include_directories(${LIBEPOXY_INCLUDE_DIRS})
+add_definitions(${LIBEPOXY_DEFINITIONS})

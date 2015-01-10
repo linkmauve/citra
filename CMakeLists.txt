@@ -56,6 +56,8 @@ add_definitions(-DSINGLETHREADED)
 set_property(DIRECTORY APPEND PROPERTY
     COMPILE_DEFINITIONS $<$<CONFIG:Debug>:_DEBUG> $<$<NOT:$<CONFIG:Debug>>:NDEBUG>)
 
+find_package(PkgConfig)
+
 find_package(PNG QUIET)
 if (PNG_FOUND)
     add_definitions(-DHAVE_PNG)
@@ -76,6 +78,16 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/externals/cmake-modules")
 
 find_package(OpenGL REQUIRED)
 include_directories(${OPENGL_INCLUDE_DIR})
+
+pkg_search_module(LIBEPOXY epoxy)
+if(LIBEPOXY_FOUND)
+    message("Using shared libepoxy")
+else()
+    message("Using static libepoxy from externals")
+    include_directories(${CMAKE_CURRENT_BINARY_DIR}/externals/libepoxy/include
+                        externals/libepoxy/libepoxy/include)
+    add_subdirectory(externals/libepoxy)
+endif()
 
 option(ENABLE_GLFW "Enable the GLFW frontend" ON)
 if (ENABLE_GLFW)
