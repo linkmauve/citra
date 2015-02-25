@@ -10,6 +10,8 @@ namespace Settings {
 
 struct Values {
     // Controls
+    std::string pad_type;
+    std::string pad_name;
     int pad_a_key;
     int pad_b_key;
     int pad_x_key;

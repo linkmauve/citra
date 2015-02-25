@@ -20,6 +20,7 @@ EmuWindow_GLFW* EmuWindow_GLFW::GetEmuWindow(GLFWwindow* win) {
 void EmuWindow_GLFW::OnKeyEvent(GLFWwindow* win, int key, int scancode, int action, int mods) {
 
     int keyboard_id = GetEmuWindow(win)->keyboard_id;
+    ASSERT(keyboard_id >= 0);
 
     if (action == GLFW_PRESS) {
         EmuWindow::KeyPressed({key, keyboard_id});
@@ -54,8 +55,6 @@ void EmuWindow_GLFW::OnClientAreaResizeEvent(GLFWwindow* win, int width, int hei
 
 /// EmuWindow_GLFW constructor
 EmuWindow_GLFW::EmuWindow_GLFW() {
-    keyboard_id = KeyMap::NewDeviceId();
-
     ReloadSetKeymaps();
 
     glfwSetErrorCallback([](int error, const char *desc){
@@ -94,9 +93,11 @@ EmuWindow_GLFW::EmuWindow_GLFW() {
     OnClientAreaResizeEvent(m_render_window, width, height);
 
     // Setup callbacks
-    glfwSetKeyCallback(m_render_window, OnKeyEvent);
     glfwSetFramebufferSizeCallback(m_render_window, OnFramebufferResizeEvent);
     glfwSetWindowSizeCallback(m_render_window, OnClientAreaResizeEvent);
+
+    if (keyboard_id >= 0)
+        glfwSetKeyCallback(m_render_window, OnKeyEvent);
 
     DoneCurrent();
 }
@@ -114,6 +115,20 @@ void EmuWindow_GLFW::SwapBuffers() {
 /// Polls window events
 void EmuWindow_GLFW::PollEvents() {
     glfwPollEvents();
+
+    // XXX: This really isn’t the place to do that!
+    if (joystick_id >= 0) {
+        for (int button = 0; button < nb_buttons; ++button) {
+            int action = buttons[button];
+            if (action == GLFW_PRESS) {
+                EmuWindow::KeyPressed({key, joystick_id});
+            } else if (action == GLFW_RELEASE) {
+                EmuWindow::KeyReleased({key, joystick_id});
+            }
+        }
+
+        Service::HID::PadUpdateComplete();
+    }
 }
 
 /// Makes the GLFW OpenGL context current for the caller thread
@@ -127,22 +142,53 @@ void EmuWindow_GLFW::DoneCurrent() {
 }
 
 void EmuWindow_GLFW::ReloadSetKeymaps() {
-    KeyMap::SetKeyMapping({Settings::values.pad_a_key,      keyboard_id}, Service::HID::PAD_A);
-    KeyMap::SetKeyMapping({Settings::values.pad_b_key,      keyboard_id}, Service::HID::PAD_B);
-    KeyMap::SetKeyMapping({Settings::values.pad_select_key, keyboard_id}, Service::HID::PAD_SELECT);
-    KeyMap::SetKeyMapping({Settings::values.pad_start_key,  keyboard_id}, Service::HID::PAD_START);
-    KeyMap::SetKeyMapping({Settings::values.pad_dright_key, keyboard_id}, Service::HID::PAD_RIGHT);
-    KeyMap::SetKeyMapping({Settings::values.pad_dleft_key,  keyboard_id}, Service::HID::PAD_LEFT);
-    KeyMap::SetKeyMapping({Settings::values.pad_dup_key,    keyboard_id}, Service::HID::PAD_UP);
-    KeyMap::SetKeyMapping({Settings::values.pad_ddown_key,  keyboard_id}, Service::HID::PAD_DOWN);
-    KeyMap::SetKeyMapping({Settings::values.pad_r_key,      keyboard_id}, Service::HID::PAD_R);
-    KeyMap::SetKeyMapping({Settings::values.pad_l_key,      keyboard_id}, Service::HID::PAD_L);
-    KeyMap::SetKeyMapping({Settings::values.pad_x_key,      keyboard_id}, Service::HID::PAD_X);
-    KeyMap::SetKeyMapping({Settings::values.pad_y_key,      keyboard_id}, Service::HID::PAD_Y);
-    KeyMap::SetKeyMapping({Settings::values.pad_sright_key, keyboard_id}, Service::HID::PAD_CIRCLE_RIGHT);
-    KeyMap::SetKeyMapping({Settings::values.pad_sleft_key,  keyboard_id}, Service::HID::PAD_CIRCLE_LEFT);
-    KeyMap::SetKeyMapping({Settings::values.pad_sup_key,    keyboard_id}, Service::HID::PAD_CIRCLE_UP);
-    KeyMap::SetKeyMapping({Settings::values.pad_sdown_key,  keyboard_id}, Service::HID::PAD_CIRCLE_DOWN);
+    std::string& pad_type = Settings::values.pad_type;
+
+    if (pad_type == "keyboard") {
+        keyboard_id = KeyMap::NewDeviceId();
+
+        KeyMap::SetKeyMapping({Settings::values.pad_a_key,      keyboard_id}, Service::HID::PAD_A);
+        KeyMap::SetKeyMapping({Settings::values.pad_b_key,      keyboard_id}, Service::HID::PAD_B);
+        KeyMap::SetKeyMapping({Settings::values.pad_select_key, keyboard_id}, Service::HID::PAD_SELECT);
+        KeyMap::SetKeyMapping({Settings::values.pad_start_key,  keyboard_id}, Service::HID::PAD_START);
+        KeyMap::SetKeyMapping({Settings::values.pad_dright_key, keyboard_id}, Service::HID::PAD_RIGHT);
+        KeyMap::SetKeyMapping({Settings::values.pad_dleft_key,  keyboard_id}, Service::HID::PAD_LEFT);
+        KeyMap::SetKeyMapping({Settings::values.pad_dup_key,    keyboard_id}, Service::HID::PAD_UP);
+        KeyMap::SetKeyMapping({Settings::values.pad_ddown_key,  keyboard_id}, Service::HID::PAD_DOWN);
+        KeyMap::SetKeyMapping({Settings::values.pad_r_key,      keyboard_id}, Service::HID::PAD_R);
+        KeyMap::SetKeyMapping({Settings::values.pad_l_key,      keyboard_id}, Service::HID::PAD_L);
+        KeyMap::SetKeyMapping({Settings::values.pad_x_key,      keyboard_id}, Service::HID::PAD_X);
+        KeyMap::SetKeyMapping({Settings::values.pad_y_key,      keyboard_id}, Service::HID::PAD_Y);
+        KeyMap::SetKeyMapping({Settings::values.pad_sright_key, keyboard_id}, Service::HID::PAD_CIRCLE_RIGHT);
+        KeyMap::SetKeyMapping({Settings::values.pad_sleft_key,  keyboard_id}, Service::HID::PAD_CIRCLE_LEFT);
+        KeyMap::SetKeyMapping({Settings::values.pad_sup_key,    keyboard_id}, Service::HID::PAD_CIRCLE_UP);
+        KeyMap::SetKeyMapping({Settings::values.pad_sdown_key,  keyboard_id}, Service::HID::PAD_CIRCLE_DOWN);
+
+    } else if (pad_type == "joystick") {
+        std::string& name = Settings::values.pad_name;
+
+        // Iterate over every possible joystick.
+        for (int joystick = GLFW_JOYSTICK_1; joystick < GLFW_JOYSTICK_LAST; ++joystick) {
+            if (!glfwJoystickPresent(joystick))
+                continue;
+
+            // The user didn’t specify any joystick name.
+            if (name.empty()) {
+                joystick_id = joystick;
+                break;
+            }
+
+            // Select the first joystick corresponding to the wanted name.
+            std::string joystick_name = glfwGetJoystickName(joystick);
+            if (name == joystick_name) {
+                joystick_id = joystick;
+                break;
+            }
+        }
+
+        axes = glfwGetJoystickAxes(joystick_id, &nb_axes);
+        buttons = glfwGetJoystickButtons(joystick_id, &nb_buttons);
+    }
 }
 
 void EmuWindow_GLFW::OnMinimalClientAreaChangeRequest(const std::pair<unsigned,unsigned>& minimal_size) {

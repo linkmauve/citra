@@ -38,6 +38,8 @@ bool Config::LoadINI(INIReader* config, const char* location, const std::string&
 
 void Config::ReadValues() {
     // Controls
+    Settings::values.pad_type  = glfw_config->Get("Controls", "type", "keyboard");
+    Settings::values.pad_name  = glfw_config->Get("Controls", "name", "");
     Settings::values.pad_a_key = glfw_config->GetInteger("Controls", "pad_a", GLFW_KEY_A);
     Settings::values.pad_b_key = glfw_config->GetInteger("Controls", "pad_b", GLFW_KEY_S);
     Settings::values.pad_x_key = glfw_config->GetInteger("Controls", "pad_x", GLFW_KEY_Z);

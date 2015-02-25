@@ -44,5 +44,12 @@ private:
     GLFWwindow* m_render_window; ///< Internal GLFW render window
 
     /// Device id of keyboard for use with KeyMap
-    int keyboard_id;
+    int keyboard_id = -1;
+
+    /// Joystick specific variables
+    int joystick_id = -1;
+    const float* axes;
+    int nb_axes;
+    const unsigned char* buttons;
+    int nb_buttons;
 };
