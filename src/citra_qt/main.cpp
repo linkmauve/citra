@@ -42,6 +42,7 @@
 #include "core/system.h"
 #include "core/core.h"
 #include "core/loader/loader.h"
+#include "core/loader/smdh.h"
 #include "core/arm/disassembler/load_symbol_map.h"
 #include "citra_qt/config.h"
 
@@ -207,6 +208,18 @@ void GMainWindow::BootGame(std::string filename) {
         System::Shutdown();
         return;
     }
+
+#if 0
+    auto f = FileUtil::IOFile("ftbrony.smdh", "rb");
+    Loader::IdentifyType(f);
+    auto smdh = Loader::Load(f);
+    f.Close();
+
+    if (smdh) {
+        render_window->SetTitle(smdh->GetShortDescription(SMDH_ApplicationTitleLanguage::English));
+        //render_window->SetIcons(24, 24, (const char*)icon);
+    }
+#endif
 
     // Create and start the emulation thread
     emu_thread = Common::make_unique<EmuThread>(render_window);

@@ -117,6 +117,17 @@ EmuWindow_GLFW::~EmuWindow_GLFW() {
     glfwTerminate();
 }
 
+void EmuWindow_GLFW::SetTitle(const std::string& title) {
+    std::string window_title = Common::StringFromFormat("%s | Citra | %s-%s", title.c_str(), Common::g_scm_branch, Common::g_scm_desc);
+    glfwSetWindowTitle(m_render_window, window_title.c_str());
+}
+
+void EmuWindow_GLFW::SetIcons(const std::vector<Image>& images) {
+    const GLFWimage* icons = reinterpret_cast<const GLFWimage*>(images.data());
+    int count = images.size();
+    glfwSetWindowIcons(m_render_window, icons, count);
+}
+
 /// Swap buffers to display the next frame
 void EmuWindow_GLFW::SwapBuffers() {
     glfwSwapBuffers(m_render_window);

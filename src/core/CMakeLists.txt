@@ -93,6 +93,7 @@ set(SRCS
             loader/elf.cpp
             loader/loader.cpp
             loader/ncch.cpp
+            loader/smdh.cpp
             loader/3dsx.cpp
             core.cpp
             core_timing.cpp
@@ -206,6 +207,7 @@ set(HEADERS
             loader/elf.h
             loader/loader.h
             loader/ncch.h
+            loader/smdh.h
             loader/3dsx.h
             core.h
             core_timing.h

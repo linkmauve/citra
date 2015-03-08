@@ -14,6 +14,7 @@
 #include "core/system.h"
 #include "core/core.h"
 #include "core/loader/loader.h"
+//#include "core/loader/smdh.h"
 
 #include "citra/config.h"
 #include "citra/emu_window/emu_window_glfw.h"
@@ -47,6 +48,25 @@ int __cdecl main(int argc, char **argv) {
         LOG_CRITICAL(Frontend, "Failed to load ROM (Error %i)!", load_result);
         return -1;
     }
+
+#if 0
+#if 1
+    auto f = FileUtil::IOFile("ftbrony.smdh", "rb");
+    Loader::IdentifyType(f);
+    auto smdh = Loader::Load(f);
+    f.Close();
+#endif
+
+    emu_window->SetTitle(smdh->GetShortDescription(SMDH_ApplicationTitleLanguage::English));
+
+    auto small_icon = smdh->DecodeIcon(false);
+    auto big_icon = smdh->DecodeIcon(true);
+
+    std::vector<Image> images;
+    images.emplace_back(24, 24, reinterpret_cast<u8*>(small_icon.data()));
+    images.emplace_back(48, 48, reinterpret_cast<u8*>(big_icon.data()));
+    emu_window->SetIcons(images);
+#endif
 
     while (emu_window->IsOpen()) {
         Core::RunLoop();

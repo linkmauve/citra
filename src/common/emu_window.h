@@ -4,11 +4,26 @@
 
 #pragma once
 
+#include <vector>
+
 #include "common/common.h"
 #include "common/scm_rev.h"
 #include "common/string_util.h"
 #include "common/key_map.h"
 #include "common/math_util.h"
+
+// XXX
+struct Image {
+    int width;
+    int height;
+    u8* pixels;
+
+    Image(int width, int height, u8* pixels) {
+        this->width = width;
+        this->height = height;
+        this->pixels = pixels;
+    }
+};
 
 /**
  * Abstraction class used to provide an interface between emulation code and the frontend
@@ -69,6 +84,10 @@ public:
     virtual void DoneCurrent() = 0;
 
     virtual void ReloadSetKeymaps() = 0;
+
+    virtual void SetTitle(const std::string& title) = 0;
+
+    virtual void SetIcons(const std::vector<Image>& images) = 0;
 
     /// Signals a key press action to the HID module
     void KeyPressed(KeyMap::HostDeviceKey key);

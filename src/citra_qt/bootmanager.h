@@ -108,6 +108,9 @@ public:
 
     void ReloadSetKeymaps() override;
 
+    void SetTitle(const std::string& title) override;
+    void SetIcons(const std::vector<Image>& images) override;
+
     void OnClientAreaResized(unsigned width, unsigned height);
 
     void OnFramebufferSizeChanged();

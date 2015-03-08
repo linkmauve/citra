@@ -4,9 +4,10 @@
 
 #pragma once
 
+#include <memory>
 #include <vector>
 
-#include "common/common.h"
+#include "common/common_types.h"
 #include "common/file_util.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -24,6 +25,7 @@ enum class FileType {
     ELF,
     BIN,
     THREEDSX, //3DSX
+    SMDH,
 };
 
 /// Return type for functions in Loader namespace

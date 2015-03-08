@@ -264,6 +264,24 @@ void GRenderWindow::ReloadSetKeymaps()
     KeyMap::SetKeyMapping({Settings::values.pad_sdown_key,  keyboard_id}, Service::HID::PAD_CIRCLE_DOWN);
 }
 
+void GRenderWindow::SetTitle(const std::string& title) {
+    std::string window_title;
+    if (title.empty())
+        window_title = Common::StringFromFormat("Citra | %s-%s", Common::g_scm_branch, Common::g_scm_desc);
+    else
+        window_title = Common::StringFromFormat("%s | Citra | %s-%s", title.c_str(), Common::g_scm_branch, Common::g_scm_desc);
+    setWindowTitle(QString::fromStdString(window_title));
+}
+
+void GRenderWindow::SetIcons(const std::vector<Image>& images) {
+    /*
+    QImage image((const unsigned char*)data, width, height, QImage::Format_RGB16);
+    QPixmap pixmap(width, height);
+    pixmap.convertFromImage(image);
+    setWindowIcon(QIcon(pixmap));
+    */
+}
+
 void GRenderWindow::OnClientAreaResized(unsigned width, unsigned height)
 {
     NotifyClientAreaSizeChanged(std::make_pair(width, height));

@@ -51,7 +51,7 @@ static inline u32 MortonInterleave(u32 x, u32 y) {
 /**
  * Calculates the offset of the position of the pixel in Morton order
  */
-static inline u32 GetMortonOffset(u32 x, u32 y, u32 bytes_per_pixel) {
+static inline u32 GetMortonOffset(u32 x, u32 y, u32 bytes_per_pixel, unsigned stride = 0) {
     // Images are split into 8x8 tiles. Each tile is composed of four 4x4 subtiles each
     // of which is composed of four 2x2 subtiles each of which is composed of four texels.
     // Each structure is embedded into the next-bigger one in a diagonal pattern, e.g.
@@ -80,7 +80,7 @@ static inline u32 GetMortonOffset(u32 x, u32 y, u32 bytes_per_pixel) {
 
     u32 i = VideoCore::MortonInterleave(x, y);
 
-    const unsigned int offset = coarse_x * block_height;
+    const unsigned int offset = coarse_x * block_height + coarse_y * stride;
 
     return (i + offset) * bytes_per_pixel;
 }

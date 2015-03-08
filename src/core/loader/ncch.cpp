@@ -139,7 +139,7 @@ ResultStatus AppLoader_NCCH::LoadSectionExeFS(const char* name, std::vector<u8>&
             s64 section_offset = (section.offset + exefs_offset + sizeof(ExeFs_Header) + ncch_offset);
             file->Seek(section_offset, SEEK_SET);
 
-            if (is_compressed) {
+            if (0 == section_number && is_compressed) {
                 // Section is compressed, read compressed .code section...
                 std::unique_ptr<u8[]> temp_buffer;
                 try {
