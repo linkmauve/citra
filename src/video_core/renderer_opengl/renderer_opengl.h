@@ -6,7 +6,7 @@
 
 #include <array>
 
-#include "generated/gl_3_2_core.h"
+#include <epoxy/gl.h>
 
 #include "common/math_util.h"
 

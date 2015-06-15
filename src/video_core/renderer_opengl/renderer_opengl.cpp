@@ -378,12 +378,6 @@ void RendererOpenGL::SetWindow(EmuWindow* window) {
 void RendererOpenGL::Init() {
     render_window->MakeCurrent();
 
-    int err = ogl_LoadFunctions();
-    if (ogl_LOAD_SUCCEEDED != err) {
-        LOG_CRITICAL(Render_OpenGL, "Failed to initialize GL functions! Exiting...");
-        exit(-1);
-    }
-
     LOG_INFO(Render_OpenGL, "GL_VERSION: %s", glGetString(GL_VERSION));
     LOG_INFO(Render_OpenGL, "GL_VENDOR: %s", glGetString(GL_VENDOR));
     LOG_INFO(Render_OpenGL, "GL_RENDERER: %s", glGetString(GL_RENDERER));

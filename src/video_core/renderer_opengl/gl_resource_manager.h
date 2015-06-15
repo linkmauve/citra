@@ -6,7 +6,7 @@
 
 #include "common/common_types.h"
 
-#include "generated/gl_3_2_core.h"
+#include <epoxy/gl.h>
 
 class OGLTexture : public NonCopyable {
 public:

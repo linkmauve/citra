@@ -8,7 +8,7 @@
 
 #include "video_core/pica.h"
 
-#include "generated/gl_3_2_core.h"
+#include <epoxy/gl.h>
 
 namespace PicaToGL {
 

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "generated/gl_3_2_core.h"
+#include <epoxy/gl.h>
 
 namespace ShaderUtil {
 

@@ -19,7 +19,7 @@
 #include "video_core/renderer_opengl/gl_shader_util.h"
 #include "video_core/renderer_opengl/pica_to_gl.h"
 
-#include "generated/gl_3_2_core.h"
+#include <epoxy/gl.h>
 
 static bool IsPassThroughTevStage(const Pica::Regs::TevStageConfig& stage) {
     return (stage.color_op == Pica::Regs::TevStageConfig::Operation::Replace &&
