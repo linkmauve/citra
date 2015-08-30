@@ -283,7 +283,7 @@ private:
      */
     void CommitDepthBuffer();
 
-    RasterizerCacheOpenGL res_cache;
+    RendererGL::SurfaceCache res_cache;
 
     std::vector<HardwareVertex> vertex_batch;
 

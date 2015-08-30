@@ -248,9 +248,9 @@ struct Regs {
     INSERT_PADDING_WORDS(0x21);
 
     struct FullTextureConfig {
-        const bool enabled;
-        const TextureConfig config;
-        const TextureFormat format;
+        bool enabled;
+        TextureConfig config;
+        TextureFormat format;
     };
     const std::array<FullTextureConfig, 3> GetTextures() const {
         return {{
@@ -574,7 +574,7 @@ struct Regs {
         }
     }
 
-    struct {
+    struct FramebufferConfig {
         INSERT_PADDING_WORDS(0x6);
 
         DepthFormat depth_format; // TODO: Should be a BitField!
