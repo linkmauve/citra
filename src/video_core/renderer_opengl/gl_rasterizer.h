@@ -123,7 +123,7 @@ public:
     void DrawTriangles() override;
 
     /// Commit the rasterizer's framebuffer contents immediately to the current 3DS memory framebuffer
-    void CommitFramebuffer() override;
+    void FlushAllSurfaces() override;
 
     /// Notify rasterizer that the specified PICA register has been changed
     void NotifyPicaRegisterChanged(u32 id) override;
@@ -218,12 +218,6 @@ private:
     static_assert(sizeof(UniformData) == 0x80, "The size of the UniformData structure has changed, update the structure in the shader");
     static_assert(sizeof(UniformData) < 16000, "UniformData structure must be less than 16kb as per the OpenGL spec");
 
-    /// Reconfigure the OpenGL color texture to use the given format and dimensions
-    void ReconfigureColorTexture(TextureInfo& texture, Pica::Regs::ColorFormat format, u32 width, u32 height);
-
-    /// Reconfigure the OpenGL depth texture to use the given format and dimensions
-    void ReconfigureDepthTexture(DepthTextureInfo& texture, Pica::Regs::DepthFormat format, u32 width, u32 height);
-
     /// Sets the OpenGL shader in accordance with the current PICA register state
     void SetShader();
 
@@ -263,26 +257,6 @@ private:
     /// Syncs the remaining OpenGL drawing state to match the current PICA state
     void SyncDrawState();
 
-    /// Copies the 3DS color framebuffer into the OpenGL color framebuffer texture
-    void ReloadColorBuffer();
-
-    /// Copies the 3DS depth framebuffer into the OpenGL depth framebuffer texture
-    void ReloadDepthBuffer();
-
-    /**
-     * Save the current OpenGL color framebuffer to the current PICA framebuffer in 3DS memory
-     * Loads the OpenGL framebuffer textures into temporary buffers
-     * Then copies into the 3DS framebuffer using proper Morton order
-     */
-    void CommitColorBuffer();
-
-    /**
-     * Save the current OpenGL depth framebuffer to the current PICA framebuffer in 3DS memory
-     * Loads the OpenGL framebuffer textures into temporary buffers
-     * Then copies into the 3DS framebuffer using proper Morton order
-     */
-    void CommitDepthBuffer();
-
     RendererGL::SurfaceCache res_cache;
 
     std::vector<HardwareVertex> vertex_batch;
@@ -294,8 +268,8 @@ private:
 
     // Hardware rasterizer
     std::array<SamplerInfo, 3> texture_samplers;
-    TextureInfo fb_color_texture;
-    DepthTextureInfo fb_depth_texture;
+    RendererGL::CachedSurface* color_surface = nullptr;
+    RendererGL::CachedSurface* depth_surface = nullptr;
 
     std::unordered_map<PicaShaderConfig, std::unique_ptr<PicaShader>> shader_cache;
     const PicaShader* current_shader = nullptr;

@@ -19,7 +19,7 @@ void MurmurHash3_128(const void* key, int len, u32 seed, void* out);
 static inline u64 ComputeHash64(const void* data, int len) {
     u64 res[2];
     MurmurHash3_128(data, len, 0, res);
-    return res[0];
+    return res[0] ^ res[1];
 }
 
 } // namespace Common

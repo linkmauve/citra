@@ -135,13 +135,13 @@ inline void Write(u32 addr, const T data) {
 
                 LOG_TRACE(HW_GPU, "MemoryFill from 0x%08x to 0x%08x", config.GetStartAddress(), config.GetEndAddress());
 
+                VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetStartAddress(), config.GetEndAddress() - config.GetStartAddress());
+
                 if (!is_second_filler) {
                     GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PSC0);
                 } else {
                     GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PSC1);
                 }
-
-                VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetStartAddress(), config.GetEndAddress() - config.GetStartAddress());
             }
 
             // Reset "trigger" flag and set the "finish" flag

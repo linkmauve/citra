@@ -6,9 +6,10 @@
 
 #include <map>
 #include <memory>
+#include <tuple>
 
-#include "video_core/pica.h"
 #include "video_core/debug_utils/debug_utils.h"
+#include "video_core/pica.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
 #include "video_core/renderer_opengl/gl_state.h"
 
@@ -36,8 +37,9 @@ struct CachedSurface {
 
         // Depth buffer-only formats
         D16          = 14,
-        D24          = 15,
-        D24S8        = 16,
+        // gap
+        D24          = 16,
+        D24S8        = 17,
 
         Invalid      = 255,
     };
@@ -51,7 +53,7 @@ struct CachedSurface {
     }
 
     static ColorFormat ColorFormatFromDepthFormat(Pica::Regs::DepthFormat format) {
-        return ((unsigned int)format < 3) ? (ColorFormat)((unsigned int)format + 14) : ColorFormat::Invalid;
+        return ((unsigned int)format < 4) ? (ColorFormat)((unsigned int)format + 14) : ColorFormat::Invalid;
     }
 
     enum class TilingFormat {
@@ -80,18 +82,19 @@ public:
     CachedSurface* GetSurface(OpenGLState &state, unsigned texture_unit, const CachedSurface& params);
 
     void LoadAndBindTexture(OpenGLState &state, unsigned texture_unit, const Pica::Regs::FullTextureConfig& config);
-    void LoadAndBindFramebuffer(OpenGLState& state, unsigned color_tex_unit, unsigned depth_tex_unit, const Pica::Regs::FramebufferConfig& config);
+    std::tuple<CachedSurface*, CachedSurface*> LoadAndBindFramebuffer(OpenGLState& state, unsigned color_tex_unit, unsigned depth_tex_unit, const Pica::Regs::FramebufferConfig& config);
 
     void InvalidateSurface(CachedSurface* surface);
     void FlushSurface(OpenGLState& state, unsigned int texture_unit, CachedSurface* surface);
 
     /// Invalidate any cached resource that overlaps the region
-    void InvalidateInRange(PAddr addr, u32 size, bool ignore_hash = false);
+    void InvalidateInRange(PAddr addr, u32 size);
     /// Write any cached resources overlapping the region back to memory
     void FlushInRange(OpenGLState& state, PAddr addr, u32 size);
 
+    void InvalidateAll(OpenGLState& state);
     /// Flush all cached OpenGL resources tracked by this cache manager
-    void FlushAll();
+    void FlushAll(OpenGLState& state);
 
 private:
     std::map<PAddr, std::unique_ptr<CachedSurface>> texture_cache;

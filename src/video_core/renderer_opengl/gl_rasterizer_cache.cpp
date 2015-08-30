@@ -31,9 +31,10 @@ static unsigned int GetFormatBpp(CachedSurface::ColorFormat format) {
         8,  // IA4
         4,  // I4
         4,  // A4
-        64, // ETC1
-        64, // ETC1A4
+        4,  // ETC1
+        8,  // ETC1A4
         16, // D16
+        0,
         24, // D24
         32, // D24S8
     };
@@ -49,8 +50,8 @@ struct FormatTuple {
 };
 
 static const FormatTuple fb_format_tuples[] = {
-    {GL_RGBA8,   GL_RGBA, GL_UNSIGNED_BYTE},          // RGBA8
-    {GL_RGB8,    GL_RGB,  GL_UNSIGNED_BYTE},          // RGB8
+    {GL_RGBA8,   GL_RGBA, GL_UNSIGNED_INT_8_8_8_8},   // RGBA8
+    {GL_RGB8,    GL_BGR,  GL_UNSIGNED_BYTE},          // RGB8
     {GL_RGB5_A1, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1}, // RGB5A1
     {GL_RGB565,  GL_RGB,  GL_UNSIGNED_SHORT_5_6_5},   // RGB565
     {GL_RGBA4,   GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4}, // RGBA4
@@ -58,8 +59,9 @@ static const FormatTuple fb_format_tuples[] = {
 
 static const FormatTuple depth_format_tuples[] = {
     {GL_DEPTH_COMPONENT16, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT},    // D16
+    {},
     {GL_DEPTH_COMPONENT24, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT},      // D24
-    {GL_DEPTH_COMPONENT32, GL_DEPTH_STENCIL,   GL_UNSIGNED_INT_24_8}, // D24S8
+    {GL_DEPTH24_STENCIL8,  GL_DEPTH_STENCIL,   GL_UNSIGNED_INT_24_8}, // D24S8
 };
 
 MICROPROFILE_DEFINE(OpenGL_TextureUpload, "OpenGL", "Texture Upload", MP_RGB(128, 64, 192));
@@ -198,23 +200,27 @@ void SurfaceCache::LoadAndBindTexture(OpenGLState& state, unsigned texture_unit,
     GetSurface(state, texture_unit, params);
 }
 
-void SurfaceCache::LoadAndBindFramebuffer(OpenGLState& state, unsigned color_tex_unit, unsigned depth_tex_unit, const Pica::Regs::FramebufferConfig& config) {
+std::tuple<CachedSurface*, CachedSurface*> SurfaceCache::LoadAndBindFramebuffer(OpenGLState& state, unsigned color_tex_unit, unsigned depth_tex_unit, const Pica::Regs::FramebufferConfig& config) {
     CachedSurface params;
     params.addr = config.GetColorBufferPhysicalAddress();
     params.width = config.GetWidth();
     params.height = config.GetHeight();
     params.tiling_format = CachedSurface::TilingFormat::Block8x8;
     params.color_format = CachedSurface::ColorFormatFromColorFormat(config.color_format);
-    GetSurface(state, color_tex_unit, params);
+    CachedSurface* color_surface = GetSurface(state, color_tex_unit, params);
 
     params.addr = config.GetDepthBufferPhysicalAddress();
     params.color_format = CachedSurface::ColorFormatFromDepthFormat(config.depth_format);
-    GetSurface(state, depth_tex_unit, params);
+    CachedSurface* depth_surface = GetSurface(state, depth_tex_unit, params);
+
+    return std::make_tuple(color_surface, depth_surface);
 }
 
 void SurfaceCache::InvalidateSurface(CachedSurface* surface) {
     texture_cache.erase(surface->addr);
 }
+
+MICROPROFILE_DEFINE(OpenGL_FlushSurface, "OpenGL", "FlushSurface", MP_RGB(120, 120, 200));
 
 void SurfaceCache::FlushSurface(OpenGLState& state, unsigned int texture_unit, CachedSurface* surface) {
     using ColorFormat = CachedSurface::ColorFormat;
@@ -222,6 +228,8 @@ void SurfaceCache::FlushSurface(OpenGLState& state, unsigned int texture_unit, C
     if (!surface->dirty) {
         return;
     }
+
+    MICROPROFILE_SCOPE(OpenGL_FlushSurface);
 
     u8* dst_buffer = Memory::GetPhysicalPointer(surface->addr);
 
@@ -311,9 +319,10 @@ void SurfaceCache::FlushSurface(OpenGLState& state, unsigned int texture_unit, C
     }
 
     surface->dirty = false;
+    surface->hash = Common::ComputeHash64(dst_buffer, surface->size);
 }
 
-void SurfaceCache::InvalidateInRange(PAddr addr, u32 size, bool ignore_hash) {
+void SurfaceCache::InvalidateInRange(PAddr addr, u32 size) {
     // Flush any texture that falls in the flushed region
     // TODO: Optimize by also inserting upper bound (addr + size) of each texture into the same map and also narrow using lower_bound
     auto cache_upper_bound = texture_cache.upper_bound(addr + size);
@@ -323,7 +332,7 @@ void SurfaceCache::InvalidateInRange(PAddr addr, u32 size, bool ignore_hash) {
 
         // Flush the texture only if the memory region intersects and a change is detected
         if (MathUtil::IntervalsIntersect(addr, size, info.addr, info.size) &&
-            (ignore_hash || info.hash != Common::ComputeHash64(Memory::GetPhysicalPointer(info.addr), info.size))) {
+            (info.dirty || info.hash != Common::ComputeHash64(Memory::GetPhysicalPointer(info.addr), info.size))) {
 
             it = texture_cache.erase(it);
         } else {
@@ -345,9 +354,14 @@ void SurfaceCache::FlushInRange(OpenGLState& state, PAddr addr, u32 size) {
     }
 }
 
-void SurfaceCache::FlushAll() {
-    // TODO
+void SurfaceCache::InvalidateAll(OpenGLState& state) {
     texture_cache.clear();
+}
+
+void SurfaceCache::FlushAll(OpenGLState& state) {
+    for (auto& surface : texture_cache) {
+        FlushSurface(state, 0, surface.second.get());
+    }
 }
 
 }
