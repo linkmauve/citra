@@ -49,6 +49,7 @@ OpenGLState::OpenGLState() {
     }
 
     draw.framebuffer = 0;
+    draw.read_framebuffer = 0;
     draw.vertex_array = 0;
     draw.vertex_buffer = 0;
     draw.shader_program = 0;
@@ -172,7 +173,10 @@ void OpenGLState::Apply() {
 
     // Framebuffer
     if (draw.framebuffer != cur_state.draw.framebuffer) {
-        glBindFramebuffer(GL_FRAMEBUFFER, draw.framebuffer);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw.framebuffer);
+    }
+    if (draw.read_framebuffer != cur_state.draw.read_framebuffer) {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, draw.read_framebuffer);
     }
 
     // Vertex array
