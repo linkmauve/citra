@@ -451,8 +451,6 @@ void RasterizerOpenGL::SyncDrawState() {
     GLsizei viewport_width = (GLsizei)Pica::float24::FromRawFloat24(regs.viewport_size_x).ToFloat32() * 2;
     GLsizei viewport_height = (GLsizei)Pica::float24::FromRawFloat24(regs.viewport_size_y).ToFloat32() * 2;
 
-    // OpenGL uses different y coordinates, so negate corner offset and flip origin
-    // TODO: Ensure viewport_corner.x should not be negated or origin flipped
     // TODO: Use floating-point viewports for accuracy if supported
     glViewport((GLsizei)regs.viewport_corner.x,
                (GLsizei)regs.viewport_corner.y,

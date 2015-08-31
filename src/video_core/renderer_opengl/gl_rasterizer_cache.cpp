@@ -153,7 +153,7 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
                     for (int x = 0; x < params.width; ++x) {
                         const u32 coarse_y = y & ~7;
                         u32 dst_offset = VideoCore::GetMortonOffset(x, y, 4) + coarse_y * params.width * 4;
-                        u32 gl_pixel_index = (x + y * params.width);
+                        u32 gl_pixel_index = (x + (params.height - 1 - y) * params.width);
 
                         u8* pixel = texture_src_data + dst_offset;
                         u32 depth_stencil = *(u32*)pixel;
@@ -165,7 +165,7 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
                     for (int x = 0; x < params.width; ++x) {
                         const u32 coarse_y = y & ~7;
                         u32 dst_offset = VideoCore::GetMortonOffset(x, y, bytes_per_pixel) + coarse_y * params.width * bytes_per_pixel;
-                        u32 gl_pixel_index = (x + y * params.width) * gl_bpp;
+                        u32 gl_pixel_index = (x + (params.height - 1 - y) * params.width) * gl_bpp;
 
                         u8* pixel = texture_src_data + dst_offset;
                         memcpy(&temp_fb_depth_data[gl_pixel_index], pixel, bytes_per_pixel);
@@ -266,7 +266,7 @@ void SurfaceCache::FlushSurface(OpenGLState& state, unsigned int texture_unit, C
                 for (int x = 0; x < surface->width; ++x) {
                     const u32 coarse_y = y & ~7;
                     u32 dst_offset = VideoCore::GetMortonOffset(x, y, bytes_per_pixel) + coarse_y * surface->width * bytes_per_pixel;
-                    u32 gl_pixel_index = x * bytes_per_pixel + y * surface->width * bytes_per_pixel;
+                    u32 gl_pixel_index = x * bytes_per_pixel + (surface->height - 1 - y) * surface->width * bytes_per_pixel;
 
                     u8* pixel = dst_buffer + dst_offset;
                     memcpy(pixel, &temp_gl_buffer[gl_pixel_index], bytes_per_pixel);
@@ -294,7 +294,7 @@ void SurfaceCache::FlushSurface(OpenGLState& state, unsigned int texture_unit, C
                     for (int x = 0; x < surface->width; ++x) {
                         const u32 coarse_y = y & ~7;
                         u32 dst_offset = VideoCore::GetMortonOffset(x, y, bytes_per_pixel) + coarse_y * surface->width * bytes_per_pixel;
-                        u32 gl_pixel_index = (x + y * surface->width);
+                        u32 gl_pixel_index = (x + (surface->height - 1 - y) * surface->width);
 
                         u8* pixel = dst_buffer + dst_offset;
                         u32 depth_stencil = ((u32*)temp_gl_depth_data)[gl_pixel_index];
@@ -306,7 +306,7 @@ void SurfaceCache::FlushSurface(OpenGLState& state, unsigned int texture_unit, C
                     for (int x = 0; x < surface->width; ++x) {
                         const u32 coarse_y = y & ~7;
                         u32 dst_offset = VideoCore::GetMortonOffset(x, y, bytes_per_pixel) + coarse_y * surface->width * bytes_per_pixel;
-                        u32 gl_pixel_index = (x + y * surface->width) * gl_bpp;
+                        u32 gl_pixel_index = (x + (surface->height - 1 - y) * surface->width) * gl_bpp;
 
                         u8* pixel = dst_buffer + dst_offset;
                         memcpy(pixel, &temp_gl_depth_data[gl_pixel_index], bytes_per_pixel);
