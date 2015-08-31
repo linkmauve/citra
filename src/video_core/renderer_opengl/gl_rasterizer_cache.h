@@ -57,8 +57,8 @@ struct CachedSurface {
     }
 
     enum class TilingFormat {
-        Linear = 0,
-        Block8x8 = 1,
+        Linear = 0, ///< Stored in linear format, with rows from left to right, top to bottom
+        Block8x8 = 1, ///< Stored in 8x8 block format, with tiles from left to right, bottom to top
         ClearPending = 2,
     };
 
@@ -81,7 +81,7 @@ public:
     /// Loads a texture from 3DS memory to OpenGL and caches it (if not already cached)
     CachedSurface* GetSurface(OpenGLState &state, unsigned texture_unit, const CachedSurface& params);
 
-    void LoadAndBindTexture(OpenGLState &state, unsigned texture_unit, const Pica::Regs::FullTextureConfig& config);
+    CachedSurface* LoadAndBindTexture(OpenGLState &state, unsigned texture_unit, const Pica::Regs::FullTextureConfig& config);
     std::tuple<CachedSurface*, CachedSurface*> LoadAndBindFramebuffer(OpenGLState& state, unsigned color_tex_unit, unsigned depth_tex_unit, const Pica::Regs::FramebufferConfig& config);
 
     void InvalidateSurface(CachedSurface* surface);

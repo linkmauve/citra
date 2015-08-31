@@ -263,13 +263,8 @@ private:
 
     OpenGLState state;
 
-    PAddr last_fb_color_addr;
-    PAddr last_fb_depth_addr;
-
     // Hardware rasterizer
     std::array<SamplerInfo, 3> texture_samplers;
-    RendererGL::CachedSurface* color_surface = nullptr;
-    RendererGL::CachedSurface* depth_surface = nullptr;
 
     std::unordered_map<PicaShaderConfig, std::unique_ptr<PicaShader>> shader_cache;
     const PicaShader* current_shader = nullptr;

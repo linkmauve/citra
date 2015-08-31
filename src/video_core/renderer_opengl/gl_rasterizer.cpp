@@ -36,7 +36,7 @@ static bool IsPassThroughTevStage(const Pica::Regs::TevStageConfig& stage) {
             stage.GetAlphaMultiplier() == 1);
 }
 
-RasterizerOpenGL::RasterizerOpenGL() : last_fb_color_addr(0), last_fb_depth_addr(0) { }
+RasterizerOpenGL::RasterizerOpenGL() { }
 RasterizerOpenGL::~RasterizerOpenGL() { }
 
 void RasterizerOpenGL::InitObjects() {
@@ -127,9 +127,6 @@ void RasterizerOpenGL::DrawTriangles() {
     glFlush();
 
     vertex_batch.clear();
-
-    color_surface->dirty = true;
-    depth_surface->dirty = true;
 }
 
 void RasterizerOpenGL::FlushAllSurfaces() {
@@ -340,12 +337,17 @@ void RasterizerOpenGL::SyncFramebuffer() {
 
     const auto& regs = Pica::g_state.regs;
 
+    CachedSurface* color_surface;
+    CachedSurface* depth_surface;
     std::tie(color_surface, depth_surface) = res_cache.LoadAndBindFramebuffer(state, 0, 0, regs.framebuffer);
 
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color_surface->texture.handle, 0);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_surface->texture.handle, 0);
     bool has_stencil = regs.framebuffer.depth_format == Pica::Regs::DepthFormat::D24S8;
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, has_stencil ? depth_surface->texture.handle : 0, 0);
+
+    color_surface->dirty = true;
+    depth_surface->dirty = true;
 }
 
 void RasterizerOpenGL::SyncCullMode() {

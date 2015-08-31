@@ -188,7 +188,7 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
     return result.first->second.get();
 }
 
-void SurfaceCache::LoadAndBindTexture(OpenGLState& state, unsigned texture_unit, const Pica::Regs::FullTextureConfig & config) {
+CachedSurface* SurfaceCache::LoadAndBindTexture(OpenGLState& state, unsigned texture_unit, const Pica::Regs::FullTextureConfig & config) {
     Pica::DebugUtils::TextureInfo info = Pica::DebugUtils::TextureInfo::FromPicaRegister(config.config, config.format);
 
     CachedSurface params;
@@ -197,7 +197,7 @@ void SurfaceCache::LoadAndBindTexture(OpenGLState& state, unsigned texture_unit,
     params.height = info.height;
     params.tiling_format = CachedSurface::TilingFormat::Block8x8;
     params.color_format = CachedSurface::ColorFormatFromTextureFormat(info.format);
-    GetSurface(state, texture_unit, params);
+    return GetSurface(state, texture_unit, params);
 }
 
 std::tuple<CachedSurface*, CachedSurface*> SurfaceCache::LoadAndBindFramebuffer(OpenGLState& state, unsigned color_tex_unit, unsigned depth_tex_unit, const Pica::Regs::FramebufferConfig& config) {
@@ -238,8 +238,6 @@ void SurfaceCache::FlushSurface(OpenGLState& state, unsigned int texture_unit, C
     glActiveTexture(GL_TEXTURE0 + texture_unit);
 
     if (surface->tiling_format == CachedSurface::TilingFormat::Linear) {
-        UNIMPLEMENTED();
-
         // Only a few LCD framebuffer formats can be linear, so we'll fast-path them using OpenGL's
         // built-in texture formats.
 
