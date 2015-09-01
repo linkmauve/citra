@@ -284,14 +284,19 @@ bool RasterizerOpenGL::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransfe
     CachedSurface* src_surface = res_cache.GetSurfaceRect(state, 0, src_params, src_rect);
     CachedSurface* dst_surface = res_cache.GetSurface(state, 0, dst_params);
 
-    bool should_flip = config.flip_vertically != (src_params.tiling_format == TilingFormat::Linear || dst_params.tiling_format == TilingFormat::Linear);
-
     GLint src_y0 = src_rect.top + 0;
     GLint src_y1 = src_rect.top + config.output_height;
 
-    if (should_flip) {
+    if (src_params.tiling_format == TilingFormat::Linear || dst_params.tiling_format == TilingFormat::Linear) {
         src_y0 = src_params.height - src_y0;
         src_y1 = src_params.height - src_y1;
+    }
+
+    GLint dst_y0 = 0;
+    GLint dst_y1 = dst_params.height;
+
+    if (config.flip_vertically) {
+        std::swap(dst_y0, dst_y1);
     }
 
     state.draw.framebuffer = transfer_framebuffers[0].handle;
@@ -301,7 +306,7 @@ bool RasterizerOpenGL::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransfe
     glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, src_surface->texture.handle, 0);
     glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dst_surface->texture.handle, 0);
     glBlitFramebuffer(0 + src_rect.left, src_y0, config.output_width + src_rect.left, src_y1,
-                      0, 0, dst_params.width, dst_params.height,
+                      0, dst_y0, dst_params.width, dst_y1,
                       GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
     state.draw.framebuffer = framebuffer.handle;
