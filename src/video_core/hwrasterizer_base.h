@@ -6,6 +6,8 @@
 
 #include "common/common_types.h"
 
+#include "core/hw/gpu.h"
+
 namespace Pica {
 namespace Shader {
 struct OutputVertex;
@@ -42,4 +44,6 @@ public:
 
     /// Notify rasterizer that a 3DS memory region has been changed
     virtual void NotifyFlush(PAddr addr, u32 size) = 0;
+
+    virtual bool AccelerateDisplayTransfer(const GPU::Regs::DisplayTransferConfig& config) { return false; }
 };

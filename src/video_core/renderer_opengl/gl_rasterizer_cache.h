@@ -8,6 +8,10 @@
 #include <memory>
 #include <tuple>
 
+#include "common/math_util.h"
+
+#include "core/hw/gpu.h"
+
 #include "video_core/debug_utils/debug_utils.h"
 #include "video_core/pica.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
@@ -56,6 +60,19 @@ struct CachedSurface {
         return ((unsigned int)format < 4) ? (ColorFormat)((unsigned int)format + 14) : ColorFormat::Invalid;
     }
 
+    static ColorFormat ColorFormatFromPixelFormat(GPU::Regs::PixelFormat format) {
+        using PixelFormat = GPU::Regs::PixelFormat;
+        switch (format) {
+        // RGB565 and RGB5A1 are switched in PixelFormat compared to ColorFormat
+        case PixelFormat::RGB565:
+            return ColorFormat::RGB565;
+        case PixelFormat::RGB5A1:
+            return ColorFormat::RGB5A1;
+        default:
+            return ((unsigned int)format < 5) ? (ColorFormat)format : ColorFormat::Invalid;
+        }
+    }
+
     enum class TilingFormat {
         Linear = 0, ///< Stored in linear format, with rows from left to right, top to bottom
         Block8x8 = 1, ///< Stored in 8x8 block format, with tiles from left to right, bottom to top
@@ -80,6 +97,7 @@ class SurfaceCache : NonCopyable {
 public:
     /// Loads a texture from 3DS memory to OpenGL and caches it (if not already cached)
     CachedSurface* GetSurface(OpenGLState &state, unsigned texture_unit, const CachedSurface& params);
+    CachedSurface* GetSurfaceRect(OpenGLState &state, unsigned texture_unit, const CachedSurface& params, MathUtil::Rectangle<int>& out_rect);
 
     CachedSurface* LoadAndBindTexture(OpenGLState &state, unsigned texture_unit, const Pica::Regs::FullTextureConfig& config);
     std::tuple<CachedSurface*, CachedSurface*> LoadAndBindFramebuffer(OpenGLState& state, unsigned color_tex_unit, unsigned depth_tex_unit, const Pica::Regs::FramebufferConfig& config);
@@ -88,9 +106,9 @@ public:
     void FlushSurface(OpenGLState& state, unsigned int texture_unit, CachedSurface* surface);
 
     /// Invalidate any cached resource that overlaps the region
-    void InvalidateInRange(PAddr addr, u32 size);
+    void InvalidateInRange(PAddr addr, u32 size, bool ignore_hash = false);
     /// Write any cached resources overlapping the region back to memory
-    void FlushInRange(OpenGLState& state, PAddr addr, u32 size);
+    void FlushInRange(OpenGLState& state, unsigned texture_unit, PAddr addr, u32 size);
 
     void InvalidateAll(OpenGLState& state);
     /// Flush all cached OpenGL resources tracked by this cache manager

@@ -79,12 +79,12 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
         {
             state.texture_units[texture_unit].texture_2d = surface->texture.handle;
             state.Apply();
+            //llog LOG_WARNING(HW_GPU, "Texture reused: %x%s", surface->addr, surface->dirty ? " (dirty)" : "");
             return surface;
-        } else {
-            FlushSurface(state, texture_unit, surface);
-            texture_cache.erase(it);
         }
     }
+
+    //llog LOG_WARNING(HW_GPU, "New texture: %x", params.addr);
 
     MICROPROFILE_SCOPE(OpenGL_TextureUpload);
 
@@ -104,6 +104,11 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
     new_texture->clear_color = 0;
     new_texture->dirty = false;
 
+    FlushInRange(state, texture_unit, new_texture->addr, new_texture->size);
+    InvalidateInRange(new_texture->addr, new_texture->size, true);
+
+    //llog LOG_WARNING(HW_GPU, "<---");
+
     state.texture_units[texture_unit].texture_2d = new_texture->texture.handle;
     state.Apply();
     glActiveTexture(GL_TEXTURE0 + texture_unit);
@@ -116,6 +121,8 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
         const FormatTuple& tuple = fb_format_tuples[(unsigned int)params.color_format];
         glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width, params.height, 0,
                 tuple.format, tuple.type, texture_src_data);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     } else if (params.tiling_format == CachedSurface::TilingFormat::Block8x8) {
         if (params.color_format != ColorFormat::D16 &&
             params.color_format != ColorFormat::D24 &&
@@ -136,6 +143,8 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
                 }
             }
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, params.width, params.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex_buffer.get());
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         } else {
             // Depth/Stencil formats need special treatment since they aren't sampleable using LookupTexture and can't use RGBA format
 
@@ -178,6 +187,8 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
             const FormatTuple& tuple = depth_format_tuples[tuple_idx];
             glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width, params.height, 0,
                 tuple.format, tuple.type, temp_fb_depth_buffer.get());
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         }
     } else if (params.tiling_format == CachedSurface::TilingFormat::ClearPending) {
         // TODO
@@ -186,6 +197,43 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
     auto result = texture_cache.emplace(params.addr, std::move(new_texture));
     ASSERT(result.second == true);
     return result.first->second.get();
+}
+
+CachedSurface* SurfaceCache::GetSurfaceRect(OpenGLState& state, unsigned texture_unit, const CachedSurface& params, MathUtil::Rectangle<int>& out_rect) {
+    size_t params_size = params.width * params.height * GetFormatBpp(params.color_format) / 8;
+    //auto cache_upper_bound = texture_cache.upper_bound(params.addr + params_size);
+
+    for (auto it = texture_cache.begin(); it != texture_cache.end(); ++it) {
+        CachedSurface* info = it->second.get();
+
+        // Check if our request is contained in the surface
+        if (params.addr >= info->addr && params.addr <= info->addr + info->size) {
+
+            if (params.tiling_format != info->tiling_format ||
+                params.color_format != info->color_format ||
+                params.tiling_format != CachedSurface::TilingFormat::Block8x8) {
+
+                break;
+            }
+
+            u32 bytes_per_tile = 8 * 8 * GetFormatBpp(info->color_format) / 8;
+            u32 tiles_per_row = info->width / 8;
+
+            u32 begin_tile_index = (params.addr - info->addr) / bytes_per_tile;
+            int x0 = begin_tile_index % tiles_per_row * 8;
+            int y0 = begin_tile_index / tiles_per_row * 8;
+
+            state.texture_units[texture_unit].texture_2d = info->texture.handle;
+            state.Apply();
+            //llog LOG_WARNING(HW_GPU, "Texture reused: %x (%i,%i)-(%i,%i)", info->addr, x0, y0, x0 + params.width, y0 + params.height);
+            out_rect = MathUtil::Rectangle<int>(x0, y0, x0 + params.width, y0 + params.height);
+            return info;
+        }
+    }
+
+    MICROPROFILE_SCOPEI("OpenGL", "Rect reuse fail", MP_RGB(128, 64, 192));
+    out_rect = MathUtil::Rectangle<int>(0, 0, params.width, params.height);
+    return GetSurface(state, texture_unit, params);
 }
 
 CachedSurface* SurfaceCache::LoadAndBindTexture(OpenGLState& state, unsigned texture_unit, const Pica::Regs::FullTextureConfig & config) {
@@ -217,6 +265,7 @@ std::tuple<CachedSurface*, CachedSurface*> SurfaceCache::LoadAndBindFramebuffer(
 }
 
 void SurfaceCache::InvalidateSurface(CachedSurface* surface) {
+    //llog LOG_WARNING(HW_GPU, "Invalidating texture: %x", surface->addr);
     texture_cache.erase(surface->addr);
 }
 
@@ -228,6 +277,8 @@ void SurfaceCache::FlushSurface(OpenGLState& state, unsigned int texture_unit, C
     if (!surface->dirty) {
         return;
     }
+
+    //llog LOG_WARNING(HW_GPU, "Flushing texture: %x", surface->addr);
 
     MICROPROFILE_SCOPE(OpenGL_FlushSurface);
 
@@ -243,8 +294,7 @@ void SurfaceCache::FlushSurface(OpenGLState& state, unsigned int texture_unit, C
 
         ASSERT((unsigned int)surface->color_format < ARRAY_SIZE(fb_format_tuples));
         const FormatTuple& tuple = fb_format_tuples[(unsigned int)surface->color_format];
-        glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, surface->width, surface->height, 0,
-            tuple.format, tuple.type, nullptr);
+        glGetTexImage(GL_TEXTURE_2D, 0, tuple.format, tuple.type, dst_buffer);
     } else if (surface->tiling_format == CachedSurface::TilingFormat::Block8x8) {
         if (surface->color_format != ColorFormat::D16 &&
             surface->color_format != ColorFormat::D24 &&
@@ -320,7 +370,7 @@ void SurfaceCache::FlushSurface(OpenGLState& state, unsigned int texture_unit, C
     surface->hash = Common::ComputeHash64(dst_buffer, surface->size);
 }
 
-void SurfaceCache::InvalidateInRange(PAddr addr, u32 size) {
+void SurfaceCache::InvalidateInRange(PAddr addr, u32 size, bool ignore_hash) {
     // Flush any texture that falls in the flushed region
     // TODO: Optimize by also inserting upper bound (addr + size) of each texture into the same map and also narrow using lower_bound
     auto cache_upper_bound = texture_cache.upper_bound(addr + size);
@@ -330,8 +380,9 @@ void SurfaceCache::InvalidateInRange(PAddr addr, u32 size) {
 
         // Flush the texture only if the memory region intersects and a change is detected
         if (MathUtil::IntervalsIntersect(addr, size, info.addr, info.size) &&
-            (info.dirty || info.hash != Common::ComputeHash64(Memory::GetPhysicalPointer(info.addr), info.size))) {
+            (info.dirty || ignore_hash || info.hash != Common::ComputeHash64(Memory::GetPhysicalPointer(info.addr), info.size))) {
 
+            //llog LOG_WARNING(HW_GPU, "Invalidating texture: %x", info.addr);
             it = texture_cache.erase(it);
         } else {
             ++it;
@@ -339,7 +390,7 @@ void SurfaceCache::InvalidateInRange(PAddr addr, u32 size) {
     }
 }
 
-void SurfaceCache::FlushInRange(OpenGLState& state, PAddr addr, u32 size) {
+void SurfaceCache::FlushInRange(OpenGLState& state, unsigned texture_unit, PAddr addr, u32 size) {
     auto cache_upper_bound = texture_cache.upper_bound(addr + size);
 
     for (auto it = texture_cache.begin(); it != cache_upper_bound; ++it) {
@@ -347,7 +398,7 @@ void SurfaceCache::FlushInRange(OpenGLState& state, PAddr addr, u32 size) {
 
         // Flush the texture only if the memory region intersects
         if (MathUtil::IntervalsIntersect(addr, size, info->addr, info->size)) {
-            FlushSurface(state, 0, info);
+            FlushSurface(state, texture_unit, info);
         }
     }
 }

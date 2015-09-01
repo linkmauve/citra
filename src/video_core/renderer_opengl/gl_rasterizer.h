@@ -134,6 +134,8 @@ public:
     /// Notify rasterizer that a 3DS memory region has been changed
     void NotifyFlush(PAddr addr, u32 size) override;
 
+    bool AccelerateDisplayTransfer(const GPU::Regs::DisplayTransferConfig& config) override;
+
     /// OpenGL shader generated for a given Pica register state
     struct PicaShader {
         /// OpenGL shader resource
@@ -278,4 +280,5 @@ private:
     OGLBuffer vertex_buffer;
     OGLBuffer uniform_buffer;
     OGLFramebuffer framebuffer;
+    OGLFramebuffer transfer_framebuffers[2];
 };

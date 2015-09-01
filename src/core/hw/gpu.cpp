@@ -162,172 +162,176 @@ inline void Write(u32 addr, const T data) {
             if (Pica::g_debug_context)
                 Pica::g_debug_context->OnEvent(Pica::DebugContext::Event::IncomingDisplayTransfer, nullptr);
 
-            u8* src_pointer = Memory::GetPhysicalPointer(config.GetPhysicalInputAddress());
-            u8* dst_pointer = Memory::GetPhysicalPointer(config.GetPhysicalOutputAddress());
+            if (!Settings::values.use_hw_renderer || !VideoCore::g_renderer->hw_rasterizer->AccelerateDisplayTransfer(config)) {
+                u8* src_pointer = Memory::GetPhysicalPointer(config.GetPhysicalInputAddress());
+                u8* dst_pointer = Memory::GetPhysicalPointer(config.GetPhysicalOutputAddress());
 
-            if (config.is_texture_copy) {
-                u32 input_width = config.texture_copy.input_width * 16;
-                u32 input_gap = config.texture_copy.input_gap * 16;
-                u32 output_width = config.texture_copy.output_width * 16;
-                u32 output_gap = config.texture_copy.output_gap * 16;
+                if (config.is_texture_copy) {
+                    u32 input_width = config.texture_copy.input_width * 16;
+                    u32 input_gap = config.texture_copy.input_gap * 16;
+                    u32 output_width = config.texture_copy.output_width * 16;
+                    u32 output_gap = config.texture_copy.output_gap * 16;
 
-                size_t contiguous_input_size = config.texture_copy.size / input_width * (input_width + input_gap);
-                VideoCore::g_renderer->hw_rasterizer->NotifyPreRead(config.GetPhysicalInputAddress(), contiguous_input_size);
+                    size_t contiguous_input_size = config.texture_copy.size / input_width * (input_width + input_gap);
+                    VideoCore::g_renderer->hw_rasterizer->NotifyPreRead(config.GetPhysicalInputAddress(), contiguous_input_size);
 
-                u32 remaining_size = config.texture_copy.size;
-                u32 remaining_input = input_width;
-                u32 remaining_output = output_width;
-                while (remaining_size > 0) {
-                    u32 copy_size = std::min({ remaining_input, remaining_output, remaining_size });
+                    u32 remaining_size = config.texture_copy.size;
+                    u32 remaining_input = input_width;
+                    u32 remaining_output = output_width;
+                    while (remaining_size > 0) {
+                        u32 copy_size = std::min({ remaining_input, remaining_output, remaining_size });
 
-                    std::memcpy(dst_pointer, src_pointer, copy_size);
-                    src_pointer += copy_size;
-                    dst_pointer += copy_size;
+                        std::memcpy(dst_pointer, src_pointer, copy_size);
+                        src_pointer += copy_size;
+                        dst_pointer += copy_size;
 
-                    remaining_input -= copy_size;
-                    remaining_output -= copy_size;
-                    remaining_size -= copy_size;
+                        remaining_input -= copy_size;
+                        remaining_output -= copy_size;
+                        remaining_size -= copy_size;
 
-                    if (remaining_input == 0) {
-                        remaining_input = input_width;
-                        src_pointer += input_gap;
-                    }
-                    if (remaining_output == 0) {
-                        remaining_output = output_width;
-                        dst_pointer += output_gap;
-                    }
-                }
-
-                LOG_TRACE(HW_GPU, "TextureCopy: 0x%X bytes from 0x%08X(%u+%u)-> 0x%08X(%u+%u), flags 0x%08X",
-                    config.texture_copy.size,
-                    config.GetPhysicalInputAddress(), input_width, input_gap,
-                    config.GetPhysicalOutputAddress(), output_width, output_gap,
-                    config.flags);
-
-                size_t contiguous_output_size = config.texture_copy.size / output_width * (output_width + output_gap);
-                VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetPhysicalOutputAddress(), contiguous_output_size);
-
-                GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PPF);
-                break;
-            }
-
-            if (config.scaling > config.ScaleXY) {
-                LOG_CRITICAL(HW_GPU, "Unimplemented display transfer scaling mode %u", config.scaling.Value());
-                UNIMPLEMENTED();
-                break;
-            }
-
-            if (config.input_linear && config.scaling != config.NoScale) {
-                LOG_CRITICAL(HW_GPU, "Scaling is only implemented on tiled input");
-                UNIMPLEMENTED();
-                break;
-            }
-
-            bool horizontal_scale = config.scaling != config.NoScale;
-            bool vertical_scale = config.scaling == config.ScaleXY;
-
-            u32 output_width = config.output_width >> horizontal_scale;
-            u32 output_height = config.output_height >> vertical_scale;
-
-            u32 input_size = config.input_width * config.input_height * GPU::Regs::BytesPerPixel(config.input_format);
-            u32 output_size = output_width * output_height * GPU::Regs::BytesPerPixel(config.output_format);
-
-            VideoCore::g_renderer->hw_rasterizer->NotifyPreRead(config.GetPhysicalInputAddress(), input_size);
-
-            for (u32 y = 0; y < output_height; ++y) {
-                for (u32 x = 0; x < output_width; ++x) {
-                    Math::Vec4<u8> src_color;
-
-                    // Calculate the [x,y] position of the input image
-                    // based on the current output position and the scale
-                    u32 input_x = x << horizontal_scale;
-                    u32 input_y = y << vertical_scale;
-
-                    if (config.flip_vertically) {
-                        // Flip the y value of the output data,
-                        // we do this after calculating the [x,y] position of the input image
-                        // to account for the scaling options.
-                        y = output_height - y - 1;
-                    }
-
-                    u32 dst_bytes_per_pixel = GPU::Regs::BytesPerPixel(config.output_format);
-                    u32 src_bytes_per_pixel = GPU::Regs::BytesPerPixel(config.input_format);
-                    u32 src_offset;
-                    u32 dst_offset;
-
-                    if (config.input_linear) {
-                        if (!config.dont_swizzle) {
-                            // Interpret the input as linear and the output as tiled
-                            u32 coarse_y = y & ~7;
-                            u32 stride = output_width * dst_bytes_per_pixel;
-
-                            src_offset = (input_x + input_y * config.input_width) * src_bytes_per_pixel;
-                            dst_offset = VideoCore::GetMortonOffset(x, y, dst_bytes_per_pixel) + coarse_y * stride;
-                        } else {
-                           // Both input and output are linear
-                            src_offset = (input_x + input_y * config.input_width) * src_bytes_per_pixel;
-                            dst_offset = (x + y * output_width) * dst_bytes_per_pixel;
+                        if (remaining_input == 0) {
+                            remaining_input = input_width;
+                            src_pointer += input_gap;
                         }
-                    } else {
-                        if (!config.dont_swizzle) {
-                            // Interpret the input as tiled and the output as linear
-                            u32 coarse_y = input_y & ~7;
-                            u32 stride = config.input_width * src_bytes_per_pixel;
-
-                            src_offset = VideoCore::GetMortonOffset(input_x, input_y, src_bytes_per_pixel) + coarse_y * stride;
-                            dst_offset = (x + y * output_width) * dst_bytes_per_pixel;
-                        } else {
-                            // Both input and output are tiled
-                            u32 out_coarse_y = y & ~7;
-                            u32 out_stride = output_width * dst_bytes_per_pixel;
-
-                            u32 in_coarse_y = input_y & ~7;
-                            u32 in_stride = config.input_width * src_bytes_per_pixel;
-
-                            src_offset = VideoCore::GetMortonOffset(input_x, input_y, src_bytes_per_pixel) + in_coarse_y * in_stride;
-                            dst_offset = VideoCore::GetMortonOffset(x, y, dst_bytes_per_pixel) + out_coarse_y * out_stride;
+                        if (remaining_output == 0) {
+                            remaining_output = output_width;
+                            dst_pointer += output_gap;
                         }
                     }
 
-                    const u8* src_pixel = src_pointer + src_offset;
-                    src_color = DecodePixel(config.input_format, src_pixel);
-                    if (config.scaling == config.ScaleX) {
-                        Math::Vec4<u8> pixel = DecodePixel(config.input_format, src_pixel + src_bytes_per_pixel);
-                        src_color = ((src_color + pixel) / 2).Cast<u8>();
-                    } else if (config.scaling == config.ScaleXY) {
-                        Math::Vec4<u8> pixel1 = DecodePixel(config.input_format, src_pixel + 1 * src_bytes_per_pixel);
-                        Math::Vec4<u8> pixel2 = DecodePixel(config.input_format, src_pixel + 2 * src_bytes_per_pixel);
-                        Math::Vec4<u8> pixel3 = DecodePixel(config.input_format, src_pixel + 3 * src_bytes_per_pixel);
-                        src_color = (((src_color + pixel1) + (pixel2 + pixel3)) / 4).Cast<u8>();
-                    }
+                    LOG_TRACE(HW_GPU, "TextureCopy: 0x%X bytes from 0x%08X(%u+%u)-> 0x%08X(%u+%u), flags 0x%08X",
+                        config.texture_copy.size,
+                        config.GetPhysicalInputAddress(), input_width, input_gap,
+                        config.GetPhysicalOutputAddress(), output_width, output_gap,
+                        config.flags);
 
-                    u8* dst_pixel = dst_pointer + dst_offset;
-                    switch (config.output_format) {
-                    case Regs::PixelFormat::RGBA8:
-                        Color::EncodeRGBA8(src_color, dst_pixel);
-                        break;
+                    size_t contiguous_output_size = config.texture_copy.size / output_width * (output_width + output_gap);
+                    VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetPhysicalOutputAddress(), contiguous_output_size);
 
-                    case Regs::PixelFormat::RGB8:
-                        Color::EncodeRGB8(src_color, dst_pixel);
-                        break;
+                    GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PPF);
+                    break;
+                }
 
-                    case Regs::PixelFormat::RGB565:
-                        Color::EncodeRGB565(src_color, dst_pixel);
-                        break;
+                if (config.scaling > config.ScaleXY) {
+                    LOG_CRITICAL(HW_GPU, "Unimplemented display transfer scaling mode %u", config.scaling.Value());
+                    UNIMPLEMENTED();
+                    break;
+                }
 
-                    case Regs::PixelFormat::RGB5A1:
-                        Color::EncodeRGB5A1(src_color, dst_pixel);
-                        break;
+                if (config.input_linear && config.scaling != config.NoScale) {
+                    LOG_CRITICAL(HW_GPU, "Scaling is only implemented on tiled input");
+                    UNIMPLEMENTED();
+                    break;
+                }
 
-                    case Regs::PixelFormat::RGBA4:
-                        Color::EncodeRGBA4(src_color, dst_pixel);
-                        break;
+                bool horizontal_scale = config.scaling != config.NoScale;
+                bool vertical_scale = config.scaling == config.ScaleXY;
 
-                    default:
-                        LOG_ERROR(HW_GPU, "Unknown destination framebuffer format %x", config.output_format.Value());
-                        break;
+                u32 output_width = config.output_width >> horizontal_scale;
+                u32 output_height = config.output_height >> vertical_scale;
+
+                u32 input_size = config.input_width * config.input_height * GPU::Regs::BytesPerPixel(config.input_format);
+                u32 output_size = output_width * output_height * GPU::Regs::BytesPerPixel(config.output_format);
+
+                VideoCore::g_renderer->hw_rasterizer->NotifyPreRead(config.GetPhysicalInputAddress(), input_size);
+
+                for (u32 y = 0; y < output_height; ++y) {
+                    for (u32 x = 0; x < output_width; ++x) {
+                        Math::Vec4<u8> src_color;
+
+                        // Calculate the [x,y] position of the input image
+                        // based on the current output position and the scale
+                        u32 input_x = x << horizontal_scale;
+                        u32 input_y = y << vertical_scale;
+
+                        if (config.flip_vertically) {
+                            // Flip the y value of the output data,
+                            // we do this after calculating the [x,y] position of the input image
+                            // to account for the scaling options.
+                            y = output_height - y - 1;
+                        }
+
+                        u32 dst_bytes_per_pixel = GPU::Regs::BytesPerPixel(config.output_format);
+                        u32 src_bytes_per_pixel = GPU::Regs::BytesPerPixel(config.input_format);
+                        u32 src_offset;
+                        u32 dst_offset;
+
+                        if (config.input_linear) {
+                            if (!config.dont_swizzle) {
+                                // Interpret the input as linear and the output as tiled
+                                u32 coarse_y = y & ~7;
+                                u32 stride = output_width * dst_bytes_per_pixel;
+
+                                src_offset = (input_x + input_y * config.input_width) * src_bytes_per_pixel;
+                                dst_offset = VideoCore::GetMortonOffset(x, y, dst_bytes_per_pixel) + coarse_y * stride;
+                            } else {
+                               // Both input and output are linear
+                                src_offset = (input_x + input_y * config.input_width) * src_bytes_per_pixel;
+                                dst_offset = (x + y * output_width) * dst_bytes_per_pixel;
+                            }
+                        } else {
+                            if (!config.dont_swizzle) {
+                                // Interpret the input as tiled and the output as linear
+                                u32 coarse_y = input_y & ~7;
+                                u32 stride = config.input_width * src_bytes_per_pixel;
+
+                                src_offset = VideoCore::GetMortonOffset(input_x, input_y, src_bytes_per_pixel) + coarse_y * stride;
+                                dst_offset = (x + y * output_width) * dst_bytes_per_pixel;
+                            } else {
+                                // Both input and output are tiled
+                                u32 out_coarse_y = y & ~7;
+                                u32 out_stride = output_width * dst_bytes_per_pixel;
+
+                                u32 in_coarse_y = input_y & ~7;
+                                u32 in_stride = config.input_width * src_bytes_per_pixel;
+
+                                src_offset = VideoCore::GetMortonOffset(input_x, input_y, src_bytes_per_pixel) + in_coarse_y * in_stride;
+                                dst_offset = VideoCore::GetMortonOffset(x, y, dst_bytes_per_pixel) + out_coarse_y * out_stride;
+                            }
+                        }
+
+                        const u8* src_pixel = src_pointer + src_offset;
+                        src_color = DecodePixel(config.input_format, src_pixel);
+                        if (config.scaling == config.ScaleX) {
+                            Math::Vec4<u8> pixel = DecodePixel(config.input_format, src_pixel + src_bytes_per_pixel);
+                            src_color = ((src_color + pixel) / 2).Cast<u8>();
+                        } else if (config.scaling == config.ScaleXY) {
+                            Math::Vec4<u8> pixel1 = DecodePixel(config.input_format, src_pixel + 1 * src_bytes_per_pixel);
+                            Math::Vec4<u8> pixel2 = DecodePixel(config.input_format, src_pixel + 2 * src_bytes_per_pixel);
+                            Math::Vec4<u8> pixel3 = DecodePixel(config.input_format, src_pixel + 3 * src_bytes_per_pixel);
+                            src_color = (((src_color + pixel1) + (pixel2 + pixel3)) / 4).Cast<u8>();
+                        }
+
+                        u8* dst_pixel = dst_pointer + dst_offset;
+                        switch (config.output_format) {
+                        case Regs::PixelFormat::RGBA8:
+                            Color::EncodeRGBA8(src_color, dst_pixel);
+                            break;
+
+                        case Regs::PixelFormat::RGB8:
+                            Color::EncodeRGB8(src_color, dst_pixel);
+                            break;
+
+                        case Regs::PixelFormat::RGB565:
+                            Color::EncodeRGB565(src_color, dst_pixel);
+                            break;
+
+                        case Regs::PixelFormat::RGB5A1:
+                            Color::EncodeRGB5A1(src_color, dst_pixel);
+                            break;
+
+                        case Regs::PixelFormat::RGBA4:
+                            Color::EncodeRGBA4(src_color, dst_pixel);
+                            break;
+
+                        default:
+                            LOG_ERROR(HW_GPU, "Unknown destination framebuffer format %x", config.output_format.Value());
+                            break;
+                        }
                     }
                 }
+
+                VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetPhysicalOutputAddress(), output_size);
             }
 
             LOG_TRACE(HW_GPU, "DisplayTriggerTransfer: 0x%08x bytes from 0x%08x(%ux%u)-> 0x%08x(%ux%u), dst format %x, flags 0x%08X",
@@ -338,8 +342,6 @@ inline void Write(u32 addr, const T data) {
 
             g_regs.display_transfer_config.trigger = 0;
             GSP_GPU::SignalInterrupt(GSP_GPU::InterruptId::PPF);
-
-            VideoCore::g_renderer->hw_rasterizer->NotifyFlush(config.GetPhysicalOutputAddress(), output_size);
         }
         break;
     }

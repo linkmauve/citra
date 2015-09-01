@@ -186,6 +186,8 @@ void RendererOpenGL::LoadFBToActiveGLTexture(const GPU::Regs::FramebufferConfig&
         framebuffer_addr, (int)framebuffer.width,
         (int)framebuffer.height, (int)framebuffer.format);
 
+    hw_rasterizer->NotifyPreRead(framebuffer_addr, framebuffer.stride * framebuffer.height);
+
     const u8* framebuffer_data = Memory::GetPhysicalPointer(framebuffer_addr);
 
     int bpp = GPU::Regs::BytesPerPixel(framebuffer.color_format);

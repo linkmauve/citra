@@ -80,7 +80,11 @@ void RasterizerOpenGL::InitObjects() {
     // Configure OpenGL framebuffer
     framebuffer.Create();
     state.draw.framebuffer = framebuffer.handle;
+    state.draw.read_framebuffer = framebuffer.handle;
     state.Apply();
+
+    transfer_framebuffers[0].Create();
+    transfer_framebuffers[1].Create();
 
     //ASSERT_MSG(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
     //           "OpenGL rasterizer framebuffer setup failed, status %X", glCheckFramebufferStatus(GL_FRAMEBUFFER));
@@ -239,7 +243,7 @@ void RasterizerOpenGL::NotifyPreRead(PAddr addr, u32 size) {
         return;
 
     // Notify cache of flush in case the region touches a cached resource
-    res_cache.FlushInRange(state, addr, size);
+    res_cache.FlushInRange(state, 0, addr, size);
 }
 
 void RasterizerOpenGL::NotifyFlush(PAddr addr, u32 size) {
@@ -250,6 +254,69 @@ void RasterizerOpenGL::NotifyFlush(PAddr addr, u32 size) {
 
     // Notify cache of flush in case the region touches a cached resource
     res_cache.InvalidateInRange(addr, size);
+}
+
+bool RasterizerOpenGL::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransferConfig& config) {
+    using RendererGL::CachedSurface;
+    using ColorFormat = CachedSurface::ColorFormat;
+    using TilingFormat = CachedSurface::TilingFormat;
+
+    if (config.is_texture_copy) {
+        return false;
+    }
+
+    CachedSurface src_params;
+    src_params.addr = config.GetPhysicalInputAddress();
+    src_params.width = config.input_width;
+    src_params.height = config.input_height;
+    src_params.tiling_format = config.input_linear ? TilingFormat::Linear : TilingFormat::Block8x8;
+    src_params.color_format = CachedSurface::ColorFormatFromPixelFormat(config.input_format);
+
+    CachedSurface dst_params;
+    dst_params.addr = config.GetPhysicalOutputAddress();
+    dst_params.width = config.scaling != config.NoScale ? config.output_width / 2 : config.output_width;
+    dst_params.height = config.scaling == config.ScaleXY ? config.output_height / 2 : config.output_height;
+    dst_params.tiling_format = (config.dont_swizzle || config.input_linear) ? TilingFormat::Block8x8 : TilingFormat::Linear;
+    dst_params.color_format = CachedSurface::ColorFormatFromPixelFormat(config.output_format);
+
+    // TODO(yuriks): Detect overlap
+    MathUtil::Rectangle<int> src_rect;
+    CachedSurface* src_surface = res_cache.GetSurfaceRect(state, 0, src_params, src_rect);
+    CachedSurface* dst_surface = res_cache.GetSurface(state, 0, dst_params);
+
+    bool should_flip = config.flip_vertically != (src_params.tiling_format == TilingFormat::Linear || dst_params.tiling_format == TilingFormat::Linear);
+
+    GLint src_y0 = src_rect.top + 0;
+    GLint src_y1 = src_rect.top + config.output_height;
+
+    if (should_flip) {
+        src_y0 = src_params.height - src_y0;
+        src_y1 = src_params.height - src_y1;
+    }
+
+    state.draw.framebuffer = transfer_framebuffers[0].handle;
+    state.draw.read_framebuffer = transfer_framebuffers[1].handle;
+    state.Apply();
+
+    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, src_surface->texture.handle, 0);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dst_surface->texture.handle, 0);
+    glBlitFramebuffer(0 + src_rect.left, src_y0, config.output_width + src_rect.left, src_y1,
+                      0, 0, dst_params.width, dst_params.height,
+                      GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+    state.draw.framebuffer = framebuffer.handle;
+    state.draw.read_framebuffer = framebuffer.handle;
+    state.Apply();
+
+#if 0 //llog
+    LOG_INFO(HW_GPU, "DisplayTransfer: 0x%08x bytes from 0x%08x(%ux%u)-> 0x%08x(%ux%u)",
+        dst_surface->size,
+        src_surface->addr, src_rect.GetWidth(), src_rect.GetHeight(),
+        dst_surface->addr, dst_surface->width, dst_surface->height);
+#endif
+
+    dst_surface->dirty = true;
+    return true;
 }
 
 void RasterizerOpenGL::SamplerInfo::Create() {
@@ -345,6 +412,12 @@ void RasterizerOpenGL::SyncFramebuffer() {
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_surface->texture.handle, 0);
     bool has_stencil = regs.framebuffer.depth_format == Pica::Regs::DepthFormat::D24S8;
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, has_stencil ? depth_surface->texture.handle : 0, 0);
+
+#if 0 //llog
+    LOG_INFO(HW_GPU, "Framebuffer: 0x%08x bytes at 0x%08x(%ux%u)",
+        color_surface->size,
+        color_surface->addr, color_surface->width, color_surface->height);
+#endif
 
     color_surface->dirty = true;
     depth_surface->dirty = true;
