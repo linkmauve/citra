@@ -255,11 +255,11 @@ std::tuple<CachedSurface*, CachedSurface*> SurfaceCache::LoadAndBindFramebuffer(
     params.height = config.GetHeight();
     params.tiling_format = CachedSurface::TilingFormat::Block8x8;
     params.color_format = CachedSurface::ColorFormatFromColorFormat(config.color_format);
-    CachedSurface* color_surface = GetSurface(state, color_tex_unit, params);
+    CachedSurface* color_surface = params.addr != 0 ? GetSurface(state, color_tex_unit, params) : nullptr;
 
     params.addr = config.GetDepthBufferPhysicalAddress();
     params.color_format = CachedSurface::ColorFormatFromDepthFormat(config.depth_format);
-    CachedSurface* depth_surface = GetSurface(state, depth_tex_unit, params);
+    CachedSurface* depth_surface = params.addr != 0 ? GetSurface(state, depth_tex_unit, params) : nullptr;
 
     return std::make_tuple(color_surface, depth_surface);
 }

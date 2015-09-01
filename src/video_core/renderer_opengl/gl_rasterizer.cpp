@@ -413,9 +413,9 @@ void RasterizerOpenGL::SyncFramebuffer() {
     CachedSurface* depth_surface;
     std::tie(color_surface, depth_surface) = res_cache.LoadAndBindFramebuffer(state, 0, 0, regs.framebuffer);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color_surface->texture.handle, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_surface->texture.handle, 0);
-    bool has_stencil = regs.framebuffer.depth_format == Pica::Regs::DepthFormat::D24S8;
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color_surface != nullptr ? color_surface->texture.handle : 0, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_surface != nullptr ? depth_surface->texture.handle : 0, 0);
+    bool has_stencil = depth_surface != nullptr && regs.framebuffer.depth_format == Pica::Regs::DepthFormat::D24S8;
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, has_stencil ? depth_surface->texture.handle : 0, 0);
 
 #if 0 //llog
@@ -424,8 +424,10 @@ void RasterizerOpenGL::SyncFramebuffer() {
         color_surface->addr, color_surface->width, color_surface->height);
 #endif
 
-    color_surface->dirty = true;
-    depth_surface->dirty = true;
+    if (color_surface != nullptr)
+        color_surface->dirty = true;
+    if (depth_surface != nullptr)
+        depth_surface->dirty = true;
 }
 
 void RasterizerOpenGL::SyncCullMode() {
