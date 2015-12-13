@@ -89,4 +89,57 @@ GLuint LoadProgram(const char* vertex_shader, const char* fragment_shader) {
     return program_id;
 }
 
+GLuint LoadComputeProgram(const char* compute_shader) {
+
+    // Create the shaders
+    GLuint compute_shader_id = glCreateShader(GL_COMPUTE_SHADER);
+
+    GLint result = GL_FALSE;
+    int info_log_length;
+
+    // Compile Compute Shader
+    LOG_DEBUG(Render_OpenGL, "Compiling compute shader...");
+
+    glShaderSource(compute_shader_id, 1, &compute_shader, nullptr);
+    glCompileShader(compute_shader_id);
+
+    // Check Compute Shader
+    glGetShaderiv(compute_shader_id, GL_COMPILE_STATUS, &result);
+    glGetShaderiv(compute_shader_id, GL_INFO_LOG_LENGTH, &info_log_length);
+
+    if (info_log_length > 1) {
+        std::vector<char> compute_shader_error(info_log_length);
+        glGetShaderInfoLog(compute_shader_id, info_log_length, nullptr, &compute_shader_error[0]);
+        if (result)
+            LOG_DEBUG(Render_OpenGL, "%s", &compute_shader_error[0]);
+        else
+            LOG_ERROR(Render_OpenGL, "Error compiling compute shader:\n%s", &compute_shader_error[0]);
+    }
+
+    // Link the program
+    LOG_DEBUG(Render_OpenGL, "Linking program...");
+
+    GLuint program_id = glCreateProgram();
+    glAttachShader(program_id, compute_shader_id);
+
+    glLinkProgram(program_id);
+
+    // Check the program
+    glGetProgramiv(program_id, GL_LINK_STATUS, &result);
+    glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &info_log_length);
+
+    if (info_log_length > 1) {
+        std::vector<char> program_error(info_log_length);
+        glGetProgramInfoLog(program_id, info_log_length, nullptr, &program_error[0]);
+        if (result)
+            LOG_DEBUG(Render_OpenGL, "%s", &program_error[0]);
+        else
+            LOG_ERROR(Render_OpenGL, "Error linking shader:\n%s", &program_error[0]);
+    }
+
+    glDeleteShader(compute_shader_id);
+
+    return program_id;
+}
+
 } // namespace GLShader

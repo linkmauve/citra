@@ -58,6 +58,11 @@ RasterizerCacheOpenGL::~RasterizerCacheOpenGL() {
     FlushAll();
 }
 
+extern "C" {
+extern GLuint compute_program_id;
+extern GLint uniform_output_image;
+}
+
 static void MortonCopyPixels(CachedSurface::PixelFormat pixel_format, u32 width, u32 height, u32 bytes_per_pixel, u32 gl_bytes_per_pixel, u8* morton_data, u8* gl_data, bool morton_to_gl) {
     using PixelFormat = CachedSurface::PixelFormat;
 
@@ -101,6 +106,58 @@ static void MortonCopyPixels(CachedSurface::PixelFormat pixel_format, u32 width,
         }
     }
 }
+
+#if 0
+    if (GLAD_GL_ARB_compute_shader && (unsigned int)params.color_format < 1) {
+        ASSERT((params.width & 7) == 0);
+        ASSERT((params.height & 7) == 0);
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, params.width, params.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        GLuint old_framebuffer = state.draw.framebuffer;
+        GLuint old_read_framebuffer = state.draw.read_framebuffer;
+        GLuint old_program_id = state.draw.shader_program;
+        state.draw.shader_program = compute_program_id;
+        state.draw.framebuffer = 0;
+        state.draw.read_framebuffer = 0;
+        state.Apply();
+
+        // TODO: do that in the state.
+        GLuint read_texture_id = 0;
+        glGenTextures(1, &read_texture_id);
+        ASSERT(read_texture_id > 0);
+        glActiveTexture(GL_TEXTURE0 + 3);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, params.width, params.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_src_data);
+        glActiveTexture(GL_TEXTURE0 + texture_unit);
+
+        GLint input_image_id = glGetUniformLocation(compute_program_id, "input_image");
+        GLint output_image_id = glGetUniformLocation(compute_program_id, "output_image");
+
+        ASSERT(input_image_id >= 0);
+        ASSERT(output_image_id >= 0);
+
+        // XXX
+        //printf("%d → %d\n", input_image_id, output_image_id);
+        //input_image_id = output_image_id;
+        output_image_id = input_image_id;
+
+        glBindImageTexture(input_image_id, read_texture_id, 0, false, 0, GL_READ_ONLY, GL_RGBA8);
+        glBindImageTexture(output_image_id, state.texture_units[texture_unit].texture_2d, 0, false, 0, GL_WRITE_ONLY, GL_RGBA8);
+        glUniform1i(uniform_output_image, texture_unit);
+        glDispatchCompute(params.width >> 3, params.height >> 3, 1);
+
+        // TODO: do that in the state.
+        glDeleteTextures(1, &read_texture_id);
+
+        state.draw.shader_program = old_program_id;
+        state.draw.framebuffer = old_framebuffer;
+        state.draw.read_framebuffer = old_read_framebuffer;
+        state.Apply();
+    }
+#endif
 
 bool RasterizerCacheOpenGL::BlitTextures(GLuint src_tex, GLuint dst_tex, CachedSurface::SurfaceType type, const MathUtil::Rectangle<int>& src_rect, const MathUtil::Rectangle<int>& dst_rect) {
     using SurfaceType = CachedSurface::SurfaceType;
