@@ -53,7 +53,7 @@ static const FormatTuple fb_format_tuples[] = {
     {GL_RGBA8,   GL_RGBA, GL_UNSIGNED_INT_8_8_8_8},   // RGBA8
     {GL_RGB8,    GL_BGR,  GL_UNSIGNED_BYTE},          // RGB8
     {GL_RGB5_A1, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1}, // RGB5A1
-    {GL_RGB565,  GL_RGB,  GL_UNSIGNED_SHORT_5_6_5},   // RGB565
+    {0x8D62,  GL_RGB,  GL_UNSIGNED_SHORT_5_6_5},   // RGB565
     {GL_RGBA4,   GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4}, // RGBA4
 };
 
@@ -65,6 +65,11 @@ static const FormatTuple depth_format_tuples[] = {
 };
 
 MICROPROFILE_DEFINE(OpenGL_TextureUpload, "OpenGL", "Texture Upload", MP_RGB(128, 64, 192));
+
+extern "C" {
+extern GLuint compute_program_id;
+extern GLint uniform_output_image;
+}
 
 CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_unit, const CachedSurface& params) {
     using ColorFormat = CachedSurface::ColorFormat;
@@ -128,8 +133,6 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
             params.color_format != ColorFormat::D24 &&
             params.color_format != ColorFormat::D24S8) {
 
-            std::unique_ptr<Math::Vec4<u8>[]> tex_buffer(new Math::Vec4<u8>[params.width * params.height]);
-
             Pica::DebugUtils::TextureInfo tex_info;
             tex_info.width = params.width;
             tex_info.height = params.height;
@@ -137,14 +140,66 @@ CachedSurface* SurfaceCache::GetSurface(OpenGLState& state, unsigned texture_uni
             tex_info.format = (Pica::Regs::TextureFormat)params.color_format;
             tex_info.physical_address = params.addr;
 
-            for (int y = 0; y < params.height; ++y) {
-                for (int x = 0; x < params.width; ++x) {
-                    tex_buffer[x + params.width * y] = Pica::DebugUtils::LookupTexture(texture_src_data, x, params.height - 1 - y, tex_info);
+            if (GLAD_GL_ARB_compute_shader && (unsigned int)params.color_format < 1) {
+                ASSERT((params.width & 7) == 0);
+                ASSERT((params.height & 7) == 0);
+
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, params.width, params.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+                GLuint old_framebuffer = state.draw.framebuffer;
+                GLuint old_read_framebuffer = state.draw.read_framebuffer;
+                GLuint old_program_id = state.draw.shader_program;
+                state.draw.shader_program = compute_program_id;
+                state.draw.framebuffer = 0;
+                state.draw.read_framebuffer = 0;
+                state.Apply();
+
+                // TODO: do that in the state.
+                GLuint read_texture_id = 0;
+                glGenTextures(1, &read_texture_id);
+                ASSERT(read_texture_id > 0);
+                glActiveTexture(GL_TEXTURE0 + 3);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, params.width, params.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_src_data);
+                glActiveTexture(GL_TEXTURE0 + texture_unit);
+
+                GLint input_image_id = glGetUniformLocation(compute_program_id, "input_image");
+                GLint output_image_id = glGetUniformLocation(compute_program_id, "output_image");
+
+                ASSERT(input_image_id >= 0);
+                ASSERT(output_image_id >= 0);
+
+                // XXX
+                //printf("%d → %d\n", input_image_id, output_image_id);
+                //input_image_id = output_image_id;
+                output_image_id = input_image_id;
+
+                glBindImageTexture(input_image_id, read_texture_id, 0, false, 0, GL_READ_ONLY, GL_RGBA8);
+                glBindImageTexture(output_image_id, state.texture_units[texture_unit].texture_2d, 0, false, 0, GL_WRITE_ONLY, GL_RGBA8);
+                glUniform1i(uniform_output_image, texture_unit);
+                glDispatchCompute(params.width >> 3, params.height >> 3, 1);
+
+                // TODO: do that in the state.
+                glDeleteTextures(1, &read_texture_id);
+
+                state.draw.shader_program = old_program_id;
+                state.draw.framebuffer = old_framebuffer;
+                state.draw.read_framebuffer = old_read_framebuffer;
+                state.Apply();
+            } else {
+                std::unique_ptr<Math::Vec4<u8>[]> tex_buffer(new Math::Vec4<u8>[params.width * params.height]);
+
+                for (int y = 0; y < params.height; ++y) {
+                    for (int x = 0; x < params.width; ++x) {
+                        tex_buffer[x + params.width * y] = Pica::DebugUtils::LookupTexture(texture_src_data, x, params.height - 1 - y, tex_info);
+                    }
                 }
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, params.width, params.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex_buffer.get());
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             }
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, params.width, params.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex_buffer.get());
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         } else {
             // Depth/Stencil formats need special treatment since they aren't sampleable using LookupTexture and can't use RGBA format
 

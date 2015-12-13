@@ -59,6 +59,59 @@ void main() {
 }
 )";
 
+static const char compute_shader[] = R"(
+#version 330 core
+
+#extension GL_ARB_compute_shader : enable
+#extension GL_ARB_shader_image_load_store : enable
+#extension GL_ARB_shading_language_420pack : enable
+
+layout (local_size_x = 8, local_size_y = 8) in;
+
+layout (rgba8) readonly uniform image2D input_image;
+layout (rgba8) writeonly uniform image2D output_image;
+
+#if 1
+const int permutations[64] = {
+     0,  1,  4,  5, 16, 17, 20, 21,
+     2,  3,  6,  7, 18, 19, 22, 23,
+     8,  9, 12, 13, 24, 25, 28, 29,
+    10, 11, 14, 15, 26, 27, 30, 31,
+    32, 33, 36, 37, 48, 49, 52, 53,
+    34, 35, 38, 39, 50, 51, 54, 55,
+    40, 41, 44, 45, 56, 57, 60, 61,
+    42, 43, 46, 47, 58, 59, 62, 63
+};
+#else
+const int inv_permutations[64] = {
+     0,  1,  8,  9,  2,  3, 10, 11,
+    16, 17, 24, 25, 18, 19, 26, 27,
+     4,  5, 12, 13,  6,  7, 14, 15,
+    20, 21, 28, 29, 22, 23, 30, 31,
+    32, 33, 40, 41, 34, 35, 42, 43,
+    48, 49, 56, 57, 50, 51, 58, 59,
+    36, 37, 44, 45, 38, 39, 46, 47,
+    52, 53, 60, 61, 54, 55, 62, 63
+};
+#endif
+
+ivec2 getMortonPos(uint position) {
+    int pos = permutations[position];
+    return ivec2(pos & 7, pos >> 3);
+}
+
+void main() {
+    ivec2 work_group = 8 * ivec2(gl_WorkGroupID.xy);
+    uint morton_offset = gl_LocalInvocationIndex;
+    ivec2 read_position = work_group + getMortonPos(morton_offset);
+
+    ivec2 store_position = ivec2(gl_GlobalInvocationID.xy);
+
+    vec4 pixel = imageLoad(input_image, read_position).abgr;
+    imageStore(output_image, store_position, pixel);
+}
+)";
+
 /**
  * Vertex structure that the drawn screen rectangles are composed of.
  */
@@ -237,6 +290,9 @@ void RendererOpenGL::LoadColorToActiveGLTexture(u8 color_r, u8 color_g, u8 color
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, framebuffer_data);
 }
 
+GLuint compute_program_id = 0;
+GLint uniform_output_image = 0;
+
 /**
  * Initializes the OpenGL state and creates persistent objects.
  */
@@ -249,6 +305,9 @@ void RendererOpenGL::InitOpenGLObjects() {
     uniform_color_texture = glGetUniformLocation(program_id, "color_texture");
     attrib_position = glGetAttribLocation(program_id, "vert_position");
     attrib_tex_coord = glGetAttribLocation(program_id, "vert_tex_coord");
+
+    compute_program_id = GLShader::LoadComputeProgram(compute_shader);
+    uniform_output_image = glGetUniformLocation(compute_program_id, "output_image");
 
     // Generate VBO handle for drawing
     glGenBuffers(1, &vertex_buffer_handle);

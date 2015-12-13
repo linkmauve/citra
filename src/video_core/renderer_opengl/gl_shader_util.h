@@ -20,8 +20,15 @@ enum Attributes {
  * Utility function to create and compile an OpenGL GLSL shader program (vertex + fragment shader)
  * @param vertex_shader String of the GLSL vertex shader program
  * @param fragment_shader String of the GLSL fragment shader program
- * @returns Handle of the newly created OpenGL shader object
+ * @returns Handle of the newly created OpenGL program object
  */
 GLuint LoadProgram(const char* vertex_shader, const char* fragment_shader);
+
+/**
+ * Utility function to create and compile an OpenGL GLSL shader program (compute shader)
+ * @param compute_shader String of the GLSL compute shader program
+ * @returns Handle of the newly created OpenGL program object
+ */
+GLuint LoadComputeProgram(const char* compute_shader);
 
 } // namespace
