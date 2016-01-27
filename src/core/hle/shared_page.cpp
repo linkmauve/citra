@@ -6,6 +6,8 @@
 
 #include "core/hle/shared_page.h"
 
+#include "core/settings.h"
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace SharedPage {
@@ -16,6 +18,9 @@ void Init() {
     std::memset(&shared_page, 0, sizeof(shared_page));
 
     shared_page.running_hw = 0x1; // product
+
+    if (Settings::values.use_stereoscopy)
+        shared_page.sliderstate_3d = 1.0;
 }
 
 } // namespace
