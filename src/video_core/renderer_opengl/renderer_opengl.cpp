@@ -101,17 +101,23 @@ RendererOpenGL::RendererOpenGL() {
 RendererOpenGL::~RendererOpenGL() {
 }
 
+enum Screen {
+    TOP_LEFT = 0,
+    TOP_RIGHT = 2,
+    BOTTOM = 1
+};
+
 /// Swap buffers (render frame)
 void RendererOpenGL::SwapBuffers() {
     // Maintain the rasterizer's state as a priority
     OpenGLState prev_state = OpenGLState::GetCurState();
     state.Apply();
 
-    for(int i : {0, 1}) {
-        const auto& framebuffer = GPU::g_regs.framebuffer_config[i];
+    for(Screen i : {Screen::TOP_LEFT, Screen::BOTTOM, Screen::TOP_RIGHT}) {
+        const auto& framebuffer = GPU::g_regs.framebuffer_config[i & 1];
 
         // Main LCD (0): 0x1ED02204, Sub LCD (1): 0x1ED02A04
-        u32 lcd_color_addr = (i == 0) ? LCD_REG_INDEX(color_fill_top) : LCD_REG_INDEX(color_fill_bottom);
+        u32 lcd_color_addr = (i != Screen::BOTTOM) ? LCD_REG_INDEX(color_fill_top) : LCD_REG_INDEX(color_fill_bottom);
         lcd_color_addr = HW::VADDR_LCD + 4 * lcd_color_addr;
         LCD::Regs::ColorFill color_fill = {0};
         LCD::Read(color_fill.raw, lcd_color_addr);
@@ -131,7 +137,7 @@ void RendererOpenGL::SwapBuffers() {
                 // performance problem.
                 ConfigureFramebufferTexture(textures[i], framebuffer);
             }
-            LoadFBToActiveGLTexture(framebuffer, textures[i]);
+            LoadFBToActiveGLTexture(framebuffer, textures[i], i == TOP_RIGHT);
 
             // Resize the texture in case the framebuffer size has changed
             textures[i].width = framebuffer.width;
@@ -167,10 +173,12 @@ void RendererOpenGL::SwapBuffers() {
  * Loads framebuffer from emulated memory into the active OpenGL texture.
  */
 void RendererOpenGL::LoadFBToActiveGLTexture(const GPU::Regs::FramebufferConfig& framebuffer,
-                                             const TextureInfo& texture) {
+                                             const TextureInfo& texture, int side) {
 
-    const PAddr framebuffer_addr = framebuffer.active_fb == 0 ?
-            framebuffer.address_left1 : framebuffer.address_left2;
+    const PAddr framebuffer_addr = (side == 0 ? (framebuffer.active_fb == 0 ?
+            framebuffer.address_left1 : framebuffer.address_left2) :
+        (framebuffer.active_fb == 0 ?
+            framebuffer.address_right1 : framebuffer.address_right2));
 
     LOG_TRACE(Render_OpenGL, "0x%08x bytes from 0x%08x(%dx%d), fmt %x",
         framebuffer.stride * framebuffer.height,
@@ -374,10 +382,24 @@ void RendererOpenGL::DrawScreens() {
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(uniform_color_texture, 0);
 
-    DrawSingleScreenRotated(textures[0], (float)layout.top_screen.left, (float)layout.top_screen.top,
-        (float)layout.top_screen.GetWidth(), (float)layout.top_screen.GetHeight());
-    DrawSingleScreenRotated(textures[1], (float)layout.bottom_screen.left,(float)layout.bottom_screen.top,
-        (float)layout.bottom_screen.GetWidth(), (float)layout.bottom_screen.GetHeight());
+    if (!Settings::values.use_stereoscopy) {
+        DrawSingleScreenRotated(textures[0], (float)layout.top_screen.left, (float)layout.top_screen.top,
+            (float)layout.top_screen.GetWidth(), (float)layout.top_screen.GetHeight());
+        DrawSingleScreenRotated(textures[1], (float)layout.bottom_screen.left,(float)layout.bottom_screen.top,
+            (float)layout.bottom_screen.GetWidth(), (float)layout.bottom_screen.GetHeight());
+    } else {
+        glViewport(0, 0, layout.width / 2, layout.height);
+        DrawSingleScreenRotated(textures[0], (float)layout.top_screen.left, (float)layout.top_screen.top,
+            (float)layout.top_screen.GetWidth(), (float)layout.top_screen.GetHeight());
+        DrawSingleScreenRotated(textures[1], (float)layout.bottom_screen.left,(float)layout.bottom_screen.top,
+            (float)layout.bottom_screen.GetWidth(), (float)layout.bottom_screen.GetHeight());
+
+        glViewport(layout.width / 2, 0, layout.width / 2, layout.height);
+        DrawSingleScreenRotated(textures[2], (float)layout.top_screen.left, (float)layout.top_screen.top,
+            (float)layout.top_screen.GetWidth(), (float)layout.top_screen.GetHeight());
+        DrawSingleScreenRotated(textures[1], (float)layout.bottom_screen.left,(float)layout.bottom_screen.top,
+            (float)layout.bottom_screen.GetWidth(), (float)layout.bottom_screen.GetHeight());
+    }
 
     m_current_frame++;
 }
