@@ -1,11 +1,13 @@
 set(SRCS
             emu_window/emu_window_glfw.cpp
+            emu_window/stereoscopy-unstable-v1-protocol.c
             citra.cpp
             config.cpp
             citra.rc
             )
 set(HEADERS
             emu_window/emu_window_glfw.h
+            emu_window/stereoscopy-unstable-v1-client-protocol.h
             config.h
             default_ini.h
             resource.h
@@ -18,7 +20,7 @@ link_directories(${GLFW_LIBRARY_DIRS})
 
 add_executable(citra ${SRCS} ${HEADERS})
 target_link_libraries(citra core video_core common)
-target_link_libraries(citra ${GLFW_LIBRARIES} ${OPENGL_gl_LIBRARY} inih glad)
+target_link_libraries(citra wayland-client ${GLFW_LIBRARIES} ${OPENGL_gl_LIBRARY} inih glad)
 if (MSVC)
     target_link_libraries(citra getopt)
 endif()

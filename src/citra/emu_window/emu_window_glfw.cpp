@@ -4,12 +4,16 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 
 // Let’s use our own GL header, instead of one from GLFW.
 #include <glad/glad.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+#define GLFW_EXPOSE_NATIVE_WAYLAND
+#include <GLFW/glfw3native.h>
+#include "stereoscopy-unstable-v1-client-protocol.h"
 
 #include "common/assert.h"
 #include "common/key_map.h"
@@ -120,6 +124,42 @@ EmuWindow_GLFW::EmuWindow_GLFW() {
     glfwSetCursorPosCallback(m_render_window, OnCursorPosEvent);
     glfwSetFramebufferSizeCallback(m_render_window, OnFramebufferResizeEvent);
     glfwSetWindowSizeCallback(m_render_window, OnClientAreaResizeEvent);
+
+#if defined(GLFW_EXPOSE_NATIVE_WAYLAND)
+    if (Settings::values.use_stereoscopy) {
+        struct wl_display* display = glfwGetWaylandDisplay();
+        struct wl_surface* surface = glfwGetWaylandWindow(m_render_window);
+        struct wl_registry* registry = wl_display_get_registry(display);
+        static const struct wl_registry_listener registryListener = {
+            [](void *data, struct wl_registry *registry, uint32_t id, const char *interface, uint32_t version) -> void {
+                if (!strcmp(interface, "zwp_stereoscopy_v1")) {
+                    struct zwp_stereoscopy_v1 *stereoscopy = static_cast<struct zwp_stereoscopy_v1*>(wl_registry_bind(registry, id, &zwp_stereoscopy_v1_interface, 1));
+#if 0
+                    static const struct zwp_stereoscopy_v1_listener stereoscopy_listener = {
+                        [](void *data, struct zwp_stereoscopy_v1 *zwp_stereoscopy, struct wl_output *output, uint32_t layout) -> void {
+                            printf("Got %d!\n", layout);
+                        }
+                    };
+                    zwp_stereoscopy_v1_add_listener(stereoscopy, &stereoscopyListener, nullptr);
+#endif
+                    struct wl_surface* surface = static_cast<struct wl_surface*>(data);
+                    struct zwp_stereoscopy_description_v1* stereoscopy_description = zwp_stereoscopy_v1_create_description(stereoscopy, surface);
+                    zwp_stereoscopy_description_v1_set_layout(stereoscopy_description, ZWP_STEREOSCOPY_DESCRIPTION_V1_LAYOUT_SIDE_BY_SIDE);
+                }
+            },
+            [](void *data, struct wl_registry *registry, uint32_t name) -> void {
+                printf("Coucou :(\n");
+            }
+        };
+        wl_registry_add_listener(registry, &registryListener, surface);
+
+        // Retrieve the wp_stereoscopy global object.
+        wl_display_roundtrip(display);
+
+        // Bind it to the resource.
+        wl_display_roundtrip(display);
+    }
+#endif
 
     DoneCurrent();
 }
