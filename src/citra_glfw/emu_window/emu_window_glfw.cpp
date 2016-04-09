@@ -106,6 +106,9 @@ EmuWindow_GLFW::EmuWindow_GLFW() {
 
     glfwSetWindowUserPointer(m_render_window, this);
 
+    glfwSetWindowSizeLimits(m_render_window, 400, 480, GLFW_DONT_CARE, GLFW_DONT_CARE);
+    glfwSetWindowAspectRatio(m_render_window, 400, 480);
+
     // Notify base interface about window state
     int width, height;
     glfwGetFramebufferSize(m_render_window, &width, &height);
