@@ -514,6 +514,13 @@ static void ExitThread() {
     Kernel::GetCurrentThread()->Stop();
 }
 
+/// Called when the main process exits
+static void ExitProcess() {
+    LOG_CRITICAL(Kernel_SVC, "called, pc=0x%08X", Core::g_app_core->GetPC());
+
+    exit(0);
+}
+
 /// Gets the priority for the specified thread
 static ResultCode GetThreadPriority(s32* priority, Handle handle) {
     const SharedPtr<Kernel::Thread> thread = Kernel::g_handle_table.Get<Kernel::Thread>(handle);
@@ -909,7 +916,7 @@ static const FunctionDef SVC_Table[] = {
     {0x00, nullptr,                         "Unknown"},
     {0x01, HLE::Wrap<ControlMemory>,        "ControlMemory"},
     {0x02, HLE::Wrap<QueryMemory>,          "QueryMemory"},
-    {0x03, nullptr,                         "ExitProcess"},
+    {0x03, ExitProcess,                     "ExitProcess"},
     {0x04, nullptr,                         "GetProcessAffinityMask"},
     {0x05, nullptr,                         "SetProcessAffinityMask"},
     {0x06, nullptr,                         "GetProcessIdealProcessor"},
