@@ -52,6 +52,12 @@ void EmuWindow_GLFW::OnKeyEvent(GLFWwindow* win, int key, int scancode, int acti
     int keyboard_id = emu_window->keyboard_id;
 
     if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_ENTER && mods & GLFW_MOD_ALT) {
+            if (glfwGetWindowMonitor(win))
+                glfwSetWindowMonitor(win, nullptr, 0, 0, 400, 480, 60);
+            else
+                glfwSetWindowMonitor(win, glfwGetPrimaryMonitor(), 0, 0, 400, 480, 60);
+        }
         emu_window->KeyPressed({key, keyboard_id});
     } else if (action == GLFW_RELEASE) {
         emu_window->KeyReleased({key, keyboard_id});
