@@ -374,6 +374,20 @@ void SetSize(Service::Interface* self);
 void SetFrameRate(Service::Interface* self);
 
 /**
+ * Selects the output format for the listed cameras.
+ *
+ *  Inputs:
+ *      0: 0x002500C0
+ *      1: u8 Camera select (`CameraSelect` enum)
+ *      2: u8 Camera output format (`OutputFormat` enum)
+ *      3: u8 Context id (`Context` enum)
+ *  Outputs:
+ *      0: 0x002500C0
+ *      1: ResultCode
+ */
+void SetOutputFormat(Service::Interface* self);
+
+/**
  * Returns calibration data relating the outside cameras to eachother, for use in AR applications.
  *
  *  Inputs:

@@ -45,7 +45,7 @@ const Interface::FunctionInfo FunctionTable[] = {
     {0x002200C0, nullptr,                             "SetEffect"},
     {0x00230080, nullptr,                             "SetContrast"},
     {0x00240080, nullptr,                             "SetLensCorrection"},
-    {0x002500C0, nullptr,                             "SetOutputFormat"},
+    {0x002500C0, SetOutputFormat,                     "SetOutputFormat"},
     {0x00260140, nullptr,                             "SetAutoExposureWindow"},
     {0x00270140, nullptr,                             "SetAutoWhiteBalanceWindow"},
     {0x00280080, nullptr,                             "SetNoiseFilter"},

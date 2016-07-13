@@ -209,6 +209,7 @@ set(HEADERS
             hle/service/cam/cam_q.h
             hle/service/cam/cam_s.h
             hle/service/cam/cam_u.h
+            hle/service/cam/impl.h
             hle/service/cecd/cecd.h
             hle/service/cecd/cecd_s.h
             hle/service/cecd/cecd_u.h
@@ -280,6 +281,12 @@ set(HEADERS
             settings.h
             system.h
             )
+
+if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    set(SRCS ${SRCS} hle/service/cam/impl_linux.cpp)
+else()
+    set(SRCS ${SRCS} hle/service/cam/impl_dummy.cpp)
+endif()
 
 create_directory_groups(${SRCS} ${HEADERS})
 
